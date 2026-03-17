@@ -1,0 +1,44 @@
+{
+  "name": "AnalyticsEvent",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "User ID"
+    },
+    "course_id": {
+      "type": "string",
+      "description": "Course ID"
+    },
+    "lecture_id": {
+      "type": "string",
+      "description": "Lecture ID"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "play",
+        "pause",
+        "complete",
+        "quiz_submit",
+        "flag_stuck",
+        "enroll",
+        "question_asked",
+        "bookmark"
+      ],
+      "description": "Event type"
+    },
+    "timestamp_seconds": {
+      "type": "number",
+      "description": "Position in video when event occurred"
+    },
+    "meta": {
+      "type": "object",
+      "description": "Additional event metadata"
+    }
+  },
+  "required": [
+    "user_id",
+    "event_type"
+  ]
+}

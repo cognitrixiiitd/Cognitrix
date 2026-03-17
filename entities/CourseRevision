@@ -1,0 +1,42 @@
+{
+  "name": "CourseRevision",
+  "type": "object",
+  "properties": {
+    "course_id": {
+      "type": "string",
+      "description": "Course ID"
+    },
+    "revision_number": {
+      "type": "number",
+      "description": "Revision number"
+    },
+    "changed_by_user_id": {
+      "type": "string",
+      "description": "User who made the change"
+    },
+    "change_type": {
+      "type": "string",
+      "enum": [
+        "ai_generated",
+        "manual_edit",
+        "lecture_added",
+        "lecture_deleted",
+        "quiz_generated"
+      ],
+      "description": "Type of change"
+    },
+    "change_description": {
+      "type": "string",
+      "description": "Description of the change"
+    },
+    "snapshot_data": {
+      "type": "object",
+      "description": "Snapshot of changed data"
+    }
+  },
+  "required": [
+    "course_id",
+    "changed_by_user_id",
+    "change_type"
+  ]
+}

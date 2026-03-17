@@ -1,0 +1,75 @@
+{
+  "name": "Question",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "User who asked"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Display name"
+    },
+    "course_id": {
+      "type": "string",
+      "description": "Course ID"
+    },
+    "lecture_id": {
+      "type": "string",
+      "description": "Lecture ID"
+    },
+    "timestamp_seconds": {
+      "type": "number",
+      "description": "Timestamp in video where question was asked"
+    },
+    "text": {
+      "type": "string",
+      "description": "Question text"
+    },
+    "answers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "user_name": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Answers/replies"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "answered",
+        "closed"
+      ],
+      "default": "open"
+    },
+    "is_private": {
+      "type": "boolean",
+      "default": false,
+      "description": "Only visible to professor"
+    },
+    "is_stuck_flag": {
+      "type": "boolean",
+      "default": false,
+      "description": "Student flagged as stuck at this point"
+    }
+  },
+  "required": [
+    "user_id",
+    "course_id",
+    "text"
+  ]
+}

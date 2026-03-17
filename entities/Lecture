@@ -1,0 +1,128 @@
+{
+  "name": "Lecture",
+  "type": "object",
+  "properties": {
+    "course_id": {
+      "type": "string",
+      "description": "Parent course ID"
+    },
+    "section_name": {
+      "type": "string",
+      "description": "Section/module name for grouping"
+    },
+    "title": {
+      "type": "string",
+      "description": "Lecture title"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "video",
+        "youtube",
+        "pdf",
+        "slides",
+        "notes",
+        "external_link"
+      ],
+      "description": "Content type"
+    },
+    "source_url": {
+      "type": "string",
+      "description": "YouTube URL, uploaded file URL, or external link"
+    },
+    "duration_minutes": {
+      "type": "number",
+      "description": "Duration in minutes"
+    },
+    "transcript_text": {
+      "type": "string",
+      "description": "Full transcript text"
+    },
+    "topic_timestamps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "string"
+          },
+          "start": {
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Topic segments with timestamps"
+    },
+    "order_index": {
+      "type": "number",
+      "description": "Order within the course"
+    },
+    "ai_generated_title": {
+      "type": "string",
+      "description": "AI suggested title"
+    },
+    "ai_generated_description": {
+      "type": "string",
+      "description": "AI suggested description"
+    },
+    "suggested_resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "AI-suggested external resources"
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Additional files/resources"
+    },
+    "generated_by_ai": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether content was AI generated"
+    },
+    "allow_download": {
+      "type": "boolean",
+      "default": false
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "default": "active",
+      "description": "Lecture status"
+    }
+  },
+  "required": [
+    "course_id",
+    "title",
+    "type"
+  ]
+}

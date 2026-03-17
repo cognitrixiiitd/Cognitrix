@@ -1,0 +1,53 @@
+{
+  "name": "StudentStats",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "Student user ID"
+    },
+    "total_points": {
+      "type": "number",
+      "default": 0,
+      "description": "Total points earned"
+    },
+    "courses_completed": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of courses completed"
+    },
+    "quizzes_completed": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of quizzes completed"
+    },
+    "perfect_quiz_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of perfect quiz scores"
+    },
+    "current_streak_days": {
+      "type": "number",
+      "default": 0,
+      "description": "Current learning streak"
+    },
+    "longest_streak_days": {
+      "type": "number",
+      "default": 0,
+      "description": "Longest learning streak"
+    },
+    "last_active_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Last activity date"
+    },
+    "level": {
+      "type": "number",
+      "default": 1,
+      "description": "Student level (1-100)"
+    }
+  },
+  "required": [
+    "user_id"
+  ]
+}

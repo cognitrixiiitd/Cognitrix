@@ -1,0 +1,87 @@
+{
+  "name": "Enrollment",
+  "type": "object",
+  "properties": {
+    "student_id": {
+      "type": "string",
+      "description": "Student user ID"
+    },
+    "student_name": {
+      "type": "string",
+      "description": "Student display name"
+    },
+    "student_email": {
+      "type": "string",
+      "description": "Student email"
+    },
+    "course_id": {
+      "type": "string",
+      "description": "Course ID"
+    },
+    "course_title": {
+      "type": "string",
+      "description": "Course title for display"
+    },
+    "progress_percent": {
+      "type": "number",
+      "default": 0,
+      "description": "Completion percentage"
+    },
+    "completed_lectures": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs of completed lectures"
+    },
+    "quiz_scores": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "quiz_id": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "max_score": {
+            "type": "number"
+          },
+          "submitted_at": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Quiz attempt scores"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Completion date"
+    },
+    "last_accessed": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last access time"
+    },
+    "time_spent_minutes": {
+      "type": "number",
+      "default": 0,
+      "description": "Total time spent in minutes"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "completed",
+        "dropped"
+      ],
+      "default": "active"
+    }
+  },
+  "required": [
+    "student_id",
+    "course_id"
+  ]
+}

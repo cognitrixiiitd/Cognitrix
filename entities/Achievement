@@ -1,0 +1,56 @@
+{
+  "name": "Achievement",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "Student user ID"
+    },
+    "course_id": {
+      "type": "string",
+      "description": "Course ID (optional)"
+    },
+    "achievement_type": {
+      "type": "string",
+      "enum": [
+        "first_course",
+        "course_completed",
+        "quiz_ace",
+        "perfect_score",
+        "fast_learner",
+        "question_master",
+        "bookmark_king",
+        "week_streak",
+        "month_streak",
+        "topic_master"
+      ],
+      "description": "Type of achievement"
+    },
+    "badge_name": {
+      "type": "string",
+      "description": "Display name of badge"
+    },
+    "badge_description": {
+      "type": "string",
+      "description": "Achievement description"
+    },
+    "badge_icon": {
+      "type": "string",
+      "description": "Icon name"
+    },
+    "points_awarded": {
+      "type": "number",
+      "default": 0,
+      "description": "Points earned"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional achievement data"
+    }
+  },
+  "required": [
+    "user_id",
+    "achievement_type",
+    "badge_name"
+  ]
+}

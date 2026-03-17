@@ -1,0 +1,32 @@
+{
+  "name": "Bookmark",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "User who created the bookmark"
+    },
+    "course_id": {
+      "type": "string",
+      "description": "Course ID"
+    },
+    "lecture_id": {
+      "type": "string",
+      "description": "Lecture ID"
+    },
+    "timestamp_seconds": {
+      "type": "number",
+      "default": 0,
+      "description": "Timestamp in video (0 for entire lecture)"
+    },
+    "note": {
+      "type": "string",
+      "description": "Personal note"
+    }
+  },
+  "required": [
+    "user_id",
+    "course_id",
+    "lecture_id"
+  ]
+}

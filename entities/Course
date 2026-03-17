@@ -1,0 +1,116 @@
+{
+  "name": "Course",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Course title"
+    },
+    "short_description": {
+      "type": "string",
+      "description": "Short description (max 100 words)"
+    },
+    "long_description": {
+      "type": "string",
+      "description": "Detailed course description"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "computer_science",
+        "mathematics",
+        "physics",
+        "chemistry",
+        "biology",
+        "engineering",
+        "business",
+        "humanities",
+        "social_sciences",
+        "arts",
+        "other"
+      ],
+      "description": "Course category"
+    },
+    "difficulty_level": {
+      "type": "string",
+      "enum": [
+        "beginner",
+        "intermediate",
+        "advanced"
+      ],
+      "default": "beginner",
+      "description": "Course difficulty level"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Course tags for search"
+    },
+    "professor_id": {
+      "type": "string",
+      "description": "Professor user ID"
+    },
+    "professor_name": {
+      "type": "string",
+      "description": "Professor display name"
+    },
+    "instructor_rating": {
+      "type": "number",
+      "default": 0,
+      "description": "Average instructor rating (0-5)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "published",
+        "archived"
+      ],
+      "default": "draft",
+      "description": "Course status"
+    },
+    "learning_outcomes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "What students will learn"
+    },
+    "prerequisites": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Required prerequisites"
+    },
+    "estimated_hours": {
+      "type": "number",
+      "description": "Estimated hours to complete"
+    },
+    "credits": {
+      "type": "number",
+      "description": "Academic credits"
+    },
+    "thumbnail_url": {
+      "type": "string",
+      "description": "Course thumbnail image URL"
+    },
+    "enrollment_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of enrolled students"
+    },
+    "auto_enroll": {
+      "type": "boolean",
+      "default": true,
+      "description": "Allow auto enrollment"
+    }
+  },
+  "required": [
+    "title",
+    "category",
+    "professor_id"
+  ]
+}

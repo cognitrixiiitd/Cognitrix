@@ -1,0 +1,82 @@
+{
+  "name": "LearningPath",
+  "type": "object",
+  "properties": {
+    "student_id": {
+      "type": "string",
+      "description": "Student user ID"
+    },
+    "title": {
+      "type": "string",
+      "description": "Path title"
+    },
+    "domain": {
+      "type": "string",
+      "description": "Target domain"
+    },
+    "career_goal": {
+      "type": "string",
+      "description": "Career goal"
+    },
+    "student_level": {
+      "type": "string",
+      "enum": [
+        "beginner",
+        "intermediate",
+        "advanced"
+      ],
+      "default": "beginner"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step_order": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "target_id_or_link": {
+            "type": "string"
+          },
+          "estimated_hours": {
+            "type": "number"
+          },
+          "why": {
+            "type": "string"
+          },
+          "completed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "description": "Ordered learning steps"
+    },
+    "confidence_score": {
+      "type": "number",
+      "description": "AI confidence in this path"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "completed",
+        "paused"
+      ],
+      "default": "active"
+    },
+    "progress_percent": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "student_id",
+    "title"
+  ]
+}

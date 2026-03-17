@@ -1,0 +1,65 @@
+{
+  "name": "Quiz",
+  "type": "object",
+  "properties": {
+    "course_id": {
+      "type": "string",
+      "description": "Parent course ID"
+    },
+    "lecture_id": {
+      "type": "string",
+      "description": "Associated lecture ID"
+    },
+    "title": {
+      "type": "string",
+      "description": "Quiz title"
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "question_type": {
+            "type": "string",
+            "enum": [
+              "multiple_choice",
+              "fill_in_blank",
+              "short_answer"
+            ],
+            "default": "multiple_choice"
+          },
+          "question_text": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "correct_index": {
+            "type": "number"
+          },
+          "correct_answer": {
+            "type": "string"
+          },
+          "source_timestamp": {
+            "type": "string"
+          },
+          "generated_by_ai": {
+            "type": "boolean"
+          }
+        }
+      },
+      "description": "Quiz questions"
+    },
+    "total_points": {
+      "type": "number",
+      "default": 10
+    }
+  },
+  "required": [
+    "course_id",
+    "title"
+  ]
+}
