@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React, { useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/lib/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "../utils";
@@ -12,18 +13,21 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function ProfessorCourses() {
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    base44.auth.me().then(setUser);
-  }, []);
-
   const { data: courses = [], isLoading } = useQuery({
     queryKey: ["prof-all-courses", user?.id],
-    queryFn: () =>
-      base44.entities.Course.filter({ professor_id: user.id }, "-updated_date"),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("courses")
+        .select("*")
+        .eq("professor_id", user.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
     enabled: !!user?.id,
   });
 

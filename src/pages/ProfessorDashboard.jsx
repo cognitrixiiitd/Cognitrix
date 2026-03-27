@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/lib/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "../utils";
@@ -15,65 +16,61 @@ import {
   MessageSquare,
   PlusCircle,
   TrendingUp,
-  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export default function ProfessorDashboard() {
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    base44.auth.me().then(setUser);
-  }, []);
+  const { user, profile } = useAuth();
 
   const { data: courses = [], isLoading: loadingCourses } = useQuery({
     queryKey: ["prof-courses", user?.id],
-    queryFn: () =>
-      base44.entities.Course.filter(
-        { professor_id: user.id },
-        "-updated_date",
-        50,
-      ),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("courses")
+        .select("*")
+        .eq("professor_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
     enabled: !!user?.id,
   });
 
+  const courseIds = courses.map((c) => c.id);
+
   const { data: enrollments = [] } = useQuery({
-    queryKey: ["prof-enrollments", courses.map((c) => c.id).join(",")],
+    queryKey: ["prof-enrollments", courseIds.join(",")],
     queryFn: async () => {
-      if (courses.length === 0) return [];
-      const allEnrollments = [];
-      for (const course of courses) {
-        const e = await base44.entities.Enrollment.filter({
-          course_id: course.id,
-        });
-        allEnrollments.push(...e);
-      }
-      return allEnrollments;
+      if (courseIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("enrollments")
+        .select("*")
+        .in("course_id", courseIds);
+      if (error) throw error;
+      return data || [];
     },
-    enabled: courses.length > 0,
+    enabled: courseIds.length > 0,
   });
 
   const { data: questions = [] } = useQuery({
-    queryKey: ["prof-questions", courses.map((c) => c.id).join(",")],
+    queryKey: ["prof-questions", courseIds.join(",")],
     queryFn: async () => {
-      if (courses.length === 0) return [];
-      const allQ = [];
-      for (const course of courses) {
-        const q = await base44.entities.Question.filter({
-          course_id: course.id,
-          status: "open",
-        });
-        allQ.push(...q);
-      }
-      return allQ;
+      if (courseIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("questions")
+        .select("*")
+        .in("course_id", courseIds)
+        .eq("status", "open");
+      if (error) throw error;
+      return data || [];
     },
-    enabled: courses.length > 0,
+    enabled: courseIds.length > 0,
   });
 
   if (loadingCourses) return <LoadingSpinner />;
 
-  const publishedCourses = courses.filter((c) => c.status === "published");
   const totalStudents = new Set(enrollments.map((e) => e.student_id)).size;
   const avgCompletion =
     enrollments.length > 0
@@ -89,7 +86,7 @@ export default function ProfessorDashboard() {
         <div>
           <h1 className="text-2xl font-semibold text-black tracking-tight">
             Welcome back
-            {user?.full_name ? `, ${user.full_name.split(" ")[0]}` : ""}
+            {profile?.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
             Here's what's happening with your courses

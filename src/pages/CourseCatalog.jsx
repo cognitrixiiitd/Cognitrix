@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabaseClient";
 import { useQuery } from "@tanstack/react-query";
 import CourseCard from "../components/shared/CourseCard";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
@@ -38,13 +38,24 @@ export default function CourseCatalog() {
 
   const { data: courses = [], isLoading } = useQuery({
     queryKey: ["catalog-courses"],
-    queryFn: () =>
-      base44.entities.Course.filter({ status: "published" }, "-updated_date"),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("courses")
+        .select("*")
+        .eq("status", "published")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
   });
 
   const { data: allLectures = [] } = useQuery({
     queryKey: ["all-lectures"],
-    queryFn: () => base44.entities.Lecture.list(),
+    queryFn: async () => {
+      const { data, error } = await supabase.from("lectures").select("*");
+      if (error) throw error;
+      return data || [];
+    },
   });
 
   if (isLoading) return <LoadingSpinner />;
@@ -71,7 +82,7 @@ export default function CourseCatalog() {
           (order[a.difficulty_level] || 0) - (order[b.difficulty_level] || 0)
         );
       }
-      return new Date(b.created_date) - new Date(a.created_date);
+      return new Date(b.created_at) - new Date(a.created_at);
     });
 
   return (

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import React from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/lib/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createPageUrl } from "../utils";
 import { Link } from "react-router-dom";
@@ -45,29 +46,34 @@ const typeIcons = {
 export default function CourseDetail() {
   const params = new URLSearchParams(window.location.search);
   const courseId = params.get("id");
-  const [user, setUser] = useState(null);
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-
-  useEffect(() => {
-    base44.auth
-      .me()
-      .then(setUser)
-      .catch(() => {});
-  }, []);
 
   const { data: course, isLoading } = useQuery({
     queryKey: ["course", courseId],
     queryFn: async () => {
-      const courses = await base44.entities.Course.filter({ id: courseId });
-      return courses[0];
+      const { data, error } = await supabase
+        .from("courses")
+        .select("*")
+        .eq("id", courseId)
+        .single();
+      if (error) throw error;
+      return data;
     },
     enabled: !!courseId,
   });
 
   const { data: lectures = [] } = useQuery({
     queryKey: ["course-lectures", courseId],
-    queryFn: () =>
-      base44.entities.Lecture.filter({ course_id: courseId }, "order_index"),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("lectures")
+        .select("*")
+        .eq("course_id", courseId)
+        .order("order_index");
+      if (error) throw error;
+      return data || [];
+    },
     enabled: !!courseId,
   });
 
@@ -75,36 +81,40 @@ export default function CourseDetail() {
     queryKey: ["enrollment", courseId, user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const e = await base44.entities.Enrollment.filter({
-        course_id: courseId,
-        student_id: user.id,
-      });
-      return e[0] || null;
+      const { data, error } = await supabase
+        .from("enrollments")
+        .select("*")
+        .eq("course_id", courseId)
+        .eq("student_id", user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
     },
     enabled: !!courseId && !!user,
   });
 
   const enrollMutation = useMutation({
     mutationFn: async () => {
-      return base44.entities.Enrollment.create({
+      const { error } = await supabase.from("enrollments").insert({
         student_id: user.id,
-        student_name: user.full_name,
+        student_name: profile?.full_name,
         student_email: user.email,
         course_id: courseId,
         course_title: course.title,
         status: "active",
         progress_percent: 0,
         completed_lectures: [],
-        quiz_scores: [],
         time_spent_minutes: 0,
       });
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries(["enrollment", courseId, user?.id]);
-      // Update enrollment count
-      base44.entities.Course.update(courseId, {
-        enrollment_count: (course.enrollment_count || 0) + 1,
-      });
+      supabase
+        .from("courses")
+        .update({ enrollment_count: (course.enrollment_count || 0) + 1 })
+        .eq("id", courseId)
+        .then(() => {});
     },
   });
 
@@ -115,7 +125,7 @@ export default function CourseDetail() {
     );
 
   const isEnrolled = !!enrollment;
-  const isProfessor = user?.role === "admin";
+  const isProfessor = profile?.role === "professor" || profile?.role === "admin";
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -184,14 +194,7 @@ export default function CourseDetail() {
           </div>
 
           <div className="mt-6">
-            {!user ? (
-              <Button
-                onClick={() => base44.auth.redirectToLogin()}
-                className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl px-8"
-              >
-                Sign in to Enroll
-              </Button>
-            ) : isEnrolled ? (
+            {isEnrolled ? (
               <Link to={createPageUrl(`CoursePlayer?id=${courseId}`)}>
                 <Button className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl px-8 gap-2">
                   <Play className="w-4 h-4" />
@@ -240,7 +243,7 @@ export default function CourseDetail() {
               <p className="text-sm text-gray-400">No lectures added yet.</p>
             ) : (
               <div className="space-y-2">
-                {lectures.map((lecture, i) => {
+                {lectures.map((lecture) => {
                   const Icon = typeIcons[lecture.type] || FileText;
                   const completed = enrollment?.completed_lectures?.includes(
                     lecture.id,
@@ -267,9 +270,9 @@ export default function CourseDetail() {
                           {lecture.type?.replace("_", " ")}
                         </p>
                       </div>
-                      {lecture.duration_seconds > 0 && (
+                      {lecture.duration_minutes > 0 && (
                         <span className="text-xs text-gray-400">
-                          {Math.round(lecture.duration_seconds / 60)} min
+                          {lecture.duration_minutes} min
                         </span>
                       )}
                     </div>

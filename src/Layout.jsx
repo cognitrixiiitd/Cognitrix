@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "./utils";
-import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/lib/AuthContext";
 import {
   GraduationCap,
   BookOpen,
@@ -13,7 +13,6 @@ import {
   Menu,
   X,
   LogOut,
-  User,
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -43,62 +42,15 @@ const studentNav = [
 ];
 
 export default function Layout({ children, currentPageName }) {
-  const [user, setUser] = useState(null);
+  const { profile, user, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const me = await base44.auth.me();
-        setUser(me);
-      } catch {
-        // not logged in
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadUser();
-  }, []);
+  const displayName = profile?.full_name || user?.email || "User";
+  const userRole = profile?.role || "student";
 
   const isPublicPage = ["CourseCatalog", "LandingPage"].includes(
     currentPageName,
   );
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-[#00a98d] border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-gray-500 tracking-wide">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user && !isPublicPage) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center max-w-md px-6">
-          <div className="w-16 h-16 bg-[#00a98d]/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <GraduationCap className="w-8 h-8 text-[#00a98d]" />
-          </div>
-          <h1 className="text-2xl font-semibold text-black mb-2">
-            Welcome to EduFlow
-          </h1>
-          <p className="text-gray-500 mb-8">
-            Sign in with your college account to access the platform.
-          </p>
-          <Button
-            onClick={() => base44.auth.redirectToLogin()}
-            className="bg-[#00a98d] hover:bg-[#008f77] text-white px-8 py-3 rounded-xl text-sm font-medium"
-          >
-            Sign In
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   const professorPages = new Set([
     "ProfessorDashboard",
@@ -108,13 +60,9 @@ export default function Layout({ children, currentPageName }) {
     "ProfessorQA",
     "CourseEditor",
   ]);
-  const isProfessor = user?.role === "admin";
+  const isProfessor = userRole === "professor" || userRole === "admin";
   const isOnProfessorPage = professorPages.has(currentPageName);
-  // Only admins on professor pages see professorNav. Students NEVER see professorNav.
   const navItems = isProfessor && isOnProfessorPage ? professorNav : studentNav;
-  // Non-admins cannot access professor pages — redirect them away
-  const isUnauthorizedProfessorPage =
-    !isProfessor && professorPages.has(currentPageName);
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
@@ -152,7 +100,7 @@ export default function Layout({ children, currentPageName }) {
               <GraduationCap className="w-5 h-5 text-white" />
             </div>
             <span className="text-lg font-semibold tracking-tight text-black">
-              EduFlow
+              Cognitrix
             </span>
           </Link>
           {isProfessor && (
@@ -167,65 +115,62 @@ export default function Layout({ children, currentPageName }) {
           )}
         </div>
 
-        {user && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 hover:bg-gray-50 rounded-xl px-3 py-2 transition-colors">
-                <div className="w-8 h-8 bg-[#00a98d]/10 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-[#00a98d]">
-                    {user.full_name?.[0]?.toUpperCase() ||
-                      user.email?.[0]?.toUpperCase()}
-                  </span>
-                </div>
-                <span className="hidden sm:block text-sm font-medium text-gray-700">
-                  {user.full_name || user.email}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-2 hover:bg-gray-50 rounded-xl px-3 py-2 transition-colors">
+              <div className="w-8 h-8 bg-[#00a98d]/10 rounded-full flex items-center justify-center">
+                <span className="text-sm font-medium text-[#00a98d]">
+                  {displayName[0]?.toUpperCase()}
                 </span>
-                <ChevronDown className="w-4 h-4 text-gray-400" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <div className="px-3 py-2">
-                <p className="text-sm font-medium">{user.full_name}</p>
-                <p className="text-xs text-gray-500">{user.email}</p>
               </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => base44.auth.logout()}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign Out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+              <span className="hidden sm:block text-sm font-medium text-gray-700">
+                {displayName}
+              </span>
+              <ChevronDown className="w-4 h-4 text-gray-400" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <div className="px-3 py-2">
+              <p className="text-sm font-medium">{displayName}</p>
+              <p className="text-xs text-gray-500">{user?.email}</p>
+              <p className="text-xs text-gray-400 capitalize">{userRole}</p>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => signOut()}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
 
       <div className="flex pt-16">
         {/* Sidebar */}
-        {user && (
-          <>
-            {/* Mobile overlay */}
-            {sidebarOpen && (
-              <div
-                className="fixed inset-0 bg-black/20 z-30 lg:hidden backdrop-blur-sm"
-                onClick={() => setSidebarOpen(false)}
-              />
-            )}
-            <aside
-              className={`
+        <>
+          {/* Mobile overlay */}
+          {sidebarOpen && (
+            <div
+              className="fixed inset-0 bg-black/20 z-30 lg:hidden backdrop-blur-sm"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
+          <aside
+            className={`
               fixed top-16 left-0 bottom-0 w-64 bg-white border-r border-gray-100 z-40
               transform transition-transform duration-200 ease-out
               lg:translate-x-0
               ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
             `}
-            >
-              <nav className="p-4 space-y-1">
-                {navItems.map((item) => {
-                  const isActive = currentPageName === item.page;
-                  return (
-                    <Link
-                      key={item.page}
-                      to={createPageUrl(item.page)}
-                      onClick={() => setSidebarOpen(false)}
-                      className={`
+          >
+            <nav className="p-4 space-y-1">
+              {navItems.map((item) => {
+                const isActive = currentPageName === item.page;
+                return (
+                  <Link
+                    key={item.page}
+                    to={createPageUrl(item.page)}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`
                         flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150
                         ${
                           isActive
@@ -233,23 +178,20 @@ export default function Layout({ children, currentPageName }) {
                             : "text-gray-600 hover:bg-gray-50 hover:text-black"
                         }
                       `}
-                    >
-                      <item.icon
-                        className={`w-[18px] h-[18px] ${isActive ? "text-[#00a98d]" : "text-gray-400"}`}
-                      />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </nav>
-            </aside>
-          </>
-        )}
+                  >
+                    <item.icon
+                      className={`w-[18px] h-[18px] ${isActive ? "text-[#00a98d]" : "text-gray-400"}`}
+                    />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </aside>
+        </>
 
         {/* Main Content */}
-        <main
-          className={`flex-1 min-h-[calc(100vh-4rem)] ${user ? "lg:ml-64" : ""}`}
-        >
+        <main className="flex-1 min-h-[calc(100vh-4rem)] lg:ml-64">
           <div className="p-4 lg:p-8 max-w-[1400px] mx-auto">{children}</div>
         </main>
       </div>
