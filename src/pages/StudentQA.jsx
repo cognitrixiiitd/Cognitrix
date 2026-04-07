@@ -2,7 +2,7 @@ import React from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import LoadingSpinner from "../components/shared/LoadingSpinner";
+import PageSkeleton from "../components/shared/PageSkeleton";
 import EmptyState from "../components/shared/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, CheckCircle, Clock } from "lucide-react";
@@ -15,7 +15,7 @@ export default function StudentQA() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("questions")
-        .select("*")
+        .select("id, text, status, answers, created_at")
         .eq("user_id", user.id)
         .eq("is_stuck_flag", false)
         .order("created_at", { ascending: false });
@@ -25,7 +25,7 @@ export default function StudentQA() {
     enabled: !!user?.id,
   });
 
-  if (isLoading) return <LoadingSpinner />;
+  if (isLoading) return <PageSkeleton variant="list" />;
 
   return (
     <div>

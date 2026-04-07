@@ -19,12 +19,33 @@ const LayoutWrapper = ({ children, currentPageName }) =>
   );
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isAuthenticated } = useAuth();
+  const { isLoadingAuth, isAuthenticated, authTimedOut, retryAuth } = useAuth();
 
   if (isLoadingAuth) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#fafafa]">
+        <div className="w-8 h-8 border-4 border-[#00a98d]/20 border-t-[#00a98d] rounded-full animate-spin"></div>
+        <p className="text-sm text-gray-500 mt-4">Loading session...</p>
+      </div>
+    );
+  }
+
+  if (authTimedOut && !isAuthenticated) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#fafafa] p-4 text-center">
+        <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-4">
+          <span className="text-orange-500 text-2xl">⚠️</span>
+        </div>
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Connection Timeout</h2>
+        <p className="text-sm text-gray-500 max-w-md mb-6">
+          We couldn't connect to the authentication server. This usually happens if the server is waking up from sleep mode or if your connection is unstable.
+        </p>
+        <button
+          onClick={retryAuth}
+          className="bg-[#00a98d] hover:bg-[#008f77] text-white px-6 py-2.5 rounded-xl text-sm font-medium transition-colors"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
@@ -59,6 +80,7 @@ const AuthenticatedApp = () => {
           }
         />
       ))}
+      <Route path="/Login" element={<Navigate to="/" replace />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

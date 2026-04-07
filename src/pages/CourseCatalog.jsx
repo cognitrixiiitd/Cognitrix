@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useQuery } from "@tanstack/react-query";
 import CourseCard from "../components/shared/CourseCard";
-import LoadingSpinner from "../components/shared/LoadingSpinner";
+import PageSkeleton from "../components/shared/PageSkeleton";
 import EmptyState from "../components/shared/EmptyState";
 import { BookOpen, Search, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ export default function CourseCatalog() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("courses")
-        .select("*")
+        .select("id, title, short_description, category, difficulty_level, tags, professor_name, instructor_rating, enrollment_count, thumbnail_url, created_at")
         .eq("status", "published")
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -52,13 +52,13 @@ export default function CourseCatalog() {
   const { data: allLectures = [] } = useQuery({
     queryKey: ["all-lectures"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("lectures").select("*");
+      const { data, error } = await supabase.from("lectures").select("id, course_id, duration_minutes");
       if (error) throw error;
       return data || [];
     },
   });
 
-  if (isLoading) return <LoadingSpinner />;
+  if (isLoading) return <PageSkeleton variant="catalog" />;
 
   const filtered = courses
     .filter((c) => {

@@ -3,25 +3,26 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { Trophy, Medal, Award, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import LoadingSpinner from "@/components/shared/LoadingSpinner";
 
 export default function Leaderboard({ courseId = null, limit = 10 }) {
   const { data: stats = [], isLoading } = useQuery({
     queryKey: ["leaderboard", courseId],
     queryFn: async () => {
-      const { data: allStats, error } = await supabase.from("student_stats").select("*").order("total_points", { ascending: false }).limit(limit);
+      const { data, error } = await supabase
+        .from("student_stats")
+        .select("id, user_id, total_points, level, current_streak_days, profiles(full_name, avatar_url)")
+        .order("total_points", { ascending: false })
+        .limit(limit);
       if (error) throw error;
-      if (!allStats?.length) return [];
-      const userIds = allStats.map(s => s.user_id);
-      const { data: profiles } = await supabase.from("profiles").select("id, full_name, email").in("id", userIds);
-      return allStats.map(stat => {
-        const profile = profiles?.find(p => p.id === stat.user_id);
-        return { ...stat, user_name: profile?.full_name || profile?.email || "Unknown" };
-      });
+      return (data || []).map(stat => ({
+        ...stat,
+        user_name: stat.profiles?.full_name || "Student",
+        avatar_url: stat.profiles?.avatar_url || null,
+      }));
     },
   });
 
-  if (isLoading) return <LoadingSpinner message="Loading leaderboard..." />;
+  if (isLoading) return <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />)}</div>;
 
   const getRankIcon = (index) => {
     if (index === 0) return <Trophy className="w-5 h-5 text-yellow-500" />;

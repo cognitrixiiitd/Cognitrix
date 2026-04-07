@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import LoadingSpinner from "../components/shared/LoadingSpinner";
+import PageSkeleton from "../components/shared/PageSkeleton";
 import EmptyState from "../components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +19,7 @@ export default function ProfessorQA() {
   const { data: courses = [] } = useQuery({
     queryKey: ["qa-courses", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("courses").select("*").eq("professor_id", user.id);
+      const { data, error } = await supabase.from("courses").select("id, title").eq("professor_id", user.id);
       if (error) throw error;
       return data || [];
     },
@@ -31,7 +31,7 @@ export default function ProfessorQA() {
     queryKey: ["qa-questions", courseIds.join(","), filter],
     queryFn: async () => {
       if (courseIds.length === 0) return [];
-      let query = supabase.from("questions").select("*").in("course_id", courseIds);
+      let query = supabase.from("questions").select("id, text, user_name, course_id, status, is_stuck_flag, answers, created_at").in("course_id", courseIds);
       if (filter !== "all") query = query.eq("status", filter);
       query = query.order("created_at", { ascending: false });
       const { data, error } = await query;
@@ -53,10 +53,28 @@ export default function ProfessorQA() {
       const { error } = await supabase.from("questions").update({ answers, status: "answered" }).eq("id", questionId);
       if (error) throw error;
     },
-    onSuccess: () => { setReplyText({}); queryClient.invalidateQueries(["qa-questions"]); },
+    onSuccess: () => { setReplyText({}); queryClient.invalidateQueries({ queryKey: ["qa-questions"] }); },
   });
 
-  if (isLoading) return <LoadingSpinner />;
+  const resolveMutation = useMutation({
+    mutationFn: async (questionId) => {
+      const { error } = await supabase.from("questions")
+        .update({ is_stuck_flag: false, status: "answered" })
+        .eq("id", questionId);
+      if (error) throw error;
+    },
+    onMutate: async (questionId) => {
+      await queryClient.cancelQueries({ queryKey: ["qa-questions"] });
+      const key = ["qa-questions", courseIds.join(","), filter];
+      const prev = queryClient.getQueryData(key);
+      queryClient.setQueryData(key, (old) => (old || []).map(q => q.id === questionId ? { ...q, is_stuck_flag: false, status: "answered" } : q));
+      return { prev, key };
+    },
+    onError: (_e, _v, ctx) => { queryClient.setQueryData(ctx.key, ctx.prev); },
+    onSettled: () => { queryClient.invalidateQueries({ queryKey: ["qa-questions"] }); },
+  });
+
+  if (isLoading) return <PageSkeleton variant="list" />;
 
   return (
     <div>
@@ -100,6 +118,11 @@ export default function ProfessorQA() {
                   <div className="flex gap-2 mt-3">
                     <Textarea placeholder="Write a reply..." value={replyText[q.id] || ""} onChange={(e) => setReplyText((prev) => ({ ...prev, [q.id]: e.target.value }))} className="rounded-xl border-gray-200 text-sm h-12 resize-none" />
                     <Button size="icon" onClick={() => replyText[q.id]?.trim() && replyMutation.mutate({ questionId: q.id, text: replyText[q.id], existingAnswers: q.answers })} disabled={!replyText[q.id]?.trim() || replyMutation.isPending} className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl flex-shrink-0"><Send className="w-4 h-4" /></Button>
+                    {q.is_stuck_flag && (
+                      <Button variant="outline" size="sm" onClick={() => resolveMutation.mutate(q.id)} disabled={resolveMutation.isPending} className="text-xs gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl flex-shrink-0">
+                        <CheckCircle className="w-3.5 h-3.5" />Resolve
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>

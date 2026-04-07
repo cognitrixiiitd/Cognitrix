@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "../utils";
-import LoadingSpinner from "../components/shared/LoadingSpinner";
+import PageSkeleton from "../components/shared/PageSkeleton";
 import EmptyState from "../components/shared/EmptyState";
 import BookmarkList from "@/components/player/BookmarkList";
 import { BookOpen, GraduationCap, Trash2, Play, Clock } from "lucide-react";
@@ -19,7 +19,7 @@ export default function MyLearning() {
   const { data: enrollments = [], isLoading } = useQuery({
     queryKey: ["my-enrollments", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("enrollments").select("*").eq("student_id", user.id);
+      const { data, error } = await supabase.from("enrollments").select("id, course_id, status, progress_percent, time_spent_minutes").eq("student_id", user.id);
       if (error) throw error;
       return data || [];
     },
@@ -31,7 +31,7 @@ export default function MyLearning() {
     queryKey: ["my-courses", courseIds.join(",")],
     queryFn: async () => {
       if (courseIds.length === 0) return [];
-      const { data, error } = await supabase.from("courses").select("*").in("id", courseIds);
+      const { data, error } = await supabase.from("courses").select("id, title, professor_name, thumbnail_url").in("id", courseIds);
       if (error) throw error;
       return data || [];
     },
@@ -41,7 +41,7 @@ export default function MyLearning() {
   const { data: bookmarks = [] } = useQuery({
     queryKey: ["my-bookmarks", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("bookmarks").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("bookmarks").select("id, course_id, lecture_id, timestamp_seconds, note, created_at").eq("user_id", user.id).order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -51,7 +51,7 @@ export default function MyLearning() {
   const { data: learningPaths = [] } = useQuery({
     queryKey: ["my-paths", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("learning_paths").select("*").eq("student_id", user.id);
+      const { data, error } = await supabase.from("learning_paths").select("id, title, status, progress_percent").eq("student_id", user.id);
       if (error) throw error;
       return data || [];
     },
@@ -63,7 +63,14 @@ export default function MyLearning() {
       const { error } = await supabase.from("bookmarks").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries(["my-bookmarks"]),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ["my-bookmarks"] });
+      const prev = queryClient.getQueryData(["my-bookmarks", user?.id]);
+      queryClient.setQueryData(["my-bookmarks", user?.id], (old) => (old || []).filter(b => b.id !== id));
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => { queryClient.setQueryData(["my-bookmarks", user?.id], ctx.prev); },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["my-bookmarks"] }),
   });
 
   const unenrollMutation = useMutation({
@@ -71,10 +78,17 @@ export default function MyLearning() {
       const { error } = await supabase.from("enrollments").delete().eq("id", enrollmentId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries(["my-enrollments"]),
+    onMutate: async (enrollmentId) => {
+      await queryClient.cancelQueries({ queryKey: ["my-enrollments"] });
+      const prev = queryClient.getQueryData(["my-enrollments", user?.id]);
+      queryClient.setQueryData(["my-enrollments", user?.id], (old) => (old || []).filter(e => e.id !== enrollmentId));
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => { queryClient.setQueryData(["my-enrollments", user?.id], ctx.prev); },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["my-enrollments"] }),
   });
 
-  if (isLoading) return <LoadingSpinner />;
+  if (isLoading) return <PageSkeleton variant="list" />;
 
   const activeCourses = enrollments.filter((e) => e.status === "active");
   const completedCourses = enrollments.filter((e) => e.status === "completed");

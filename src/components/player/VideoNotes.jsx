@@ -14,7 +14,7 @@ export default function VideoNotes({ user, courseId, lectureId, currentTime }) {
   const { data: notes = [] } = useQuery({
     queryKey: ["lecture-notes", lectureId, user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("bookmarks").select("*").eq("user_id", user.id).eq("lecture_id", lectureId).not("note", "is", null);
+      const { data, error } = await supabase.from("bookmarks").select("id, note, timestamp_seconds").eq("user_id", user.id).eq("lecture_id", lectureId).not("note", "is", null);
       if (error) throw error;
       return (data || []).filter((b) => b.note && b.note.trim());
     },

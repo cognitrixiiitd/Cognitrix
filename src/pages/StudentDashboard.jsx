@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "../utils";
 import StatCard from "../components/shared/StatCard";
 import CourseCard from "../components/shared/CourseCard";
-import LoadingSpinner from "../components/shared/LoadingSpinner";
+import PageSkeleton from "../components/shared/PageSkeleton";
 import EmptyState from "../components/shared/EmptyState";
 import RecommendedCourses from "@/components/learning/RecommendedCourses";
 import { BookOpen, GraduationCap, BarChart3, Clock, TrendingUp } from "lucide-react";
@@ -17,7 +17,8 @@ export default function StudentDashboard() {
   const { data: enrollments = [], isLoading } = useQuery({
     queryKey: ["student-enrollments", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("enrollments").select("*").eq("student_id", user.id).order("last_accessed", { ascending: false, nullsFirst: false });
+      console.log("[Query] Starting student-enrollments fetch for user:", user?.id);
+      const { data, error } = await supabase.from("enrollments").select("id, course_id, status, progress_percent, time_spent_minutes, last_accessed").eq("student_id", user.id).order("last_accessed", { ascending: false, nullsFirst: false });
       if (error) throw error;
       return data || [];
     },
@@ -29,7 +30,7 @@ export default function StudentDashboard() {
     queryKey: ["student-courses", courseIds.join(",")],
     queryFn: async () => {
       if (courseIds.length === 0) return [];
-      const { data, error } = await supabase.from("courses").select("*").in("id", courseIds);
+      const { data, error } = await supabase.from("courses").select("id, title, professor_name, thumbnail_url").in("id", courseIds);
       if (error) throw error;
       return data || [];
     },
@@ -39,14 +40,14 @@ export default function StudentDashboard() {
   const { data: learningPaths = [] } = useQuery({
     queryKey: ["student-paths", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("learning_paths").select("*").eq("student_id", user.id).eq("status", "active");
+      const { data, error } = await supabase.from("learning_paths").select("id, title, status").eq("student_id", user.id).eq("status", "active");
       if (error) throw error;
       return data || [];
     },
     enabled: !!user,
   });
 
-  if (isLoading) return <LoadingSpinner />;
+  if (isLoading) return <PageSkeleton variant="dashboard" />;
 
   const activeCourses = enrollments.filter((e) => e.status === "active");
   const completedCourses = enrollments.filter((e) => e.status === "completed");

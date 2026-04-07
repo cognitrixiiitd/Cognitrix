@@ -4,10 +4,9 @@ import { useAuth } from "@/lib/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createPageUrl } from "../utils";
 import { Link } from "react-router-dom";
-import LoadingSpinner from "../components/shared/LoadingSpinner";
+import PageSkeleton from "../components/shared/PageSkeleton";
 import LectureForm from "@/components/course/LectureForm";
-import AIGeneratePanel from "@/components/course/AIGeneratePanel";
-import ManualQuizBuilder from "@/components/course/ManualQuizBuilder";
+
 import CourseHistory from "@/components/course/CourseHistory";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,14 +21,14 @@ export default function CourseEditor() {
   const { user, profile } = useAuth();
   const [showLectureForm, setShowLectureForm] = useState(false);
   const [editingLecture, setEditingLecture] = useState(null);
-  const [showAI, setShowAI] = useState(false);
-  const [showQuizBuilder, setShowQuizBuilder] = useState(null);
+  const [lectureFormTab, setLectureFormTab] = useState("transcript");
+
   const [showHistory, setShowHistory] = useState(false);
 
   const { data: course, isLoading } = useQuery({
     queryKey: ["editor-course", courseId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("courses").select("*").eq("id", courseId).single();
+      const { data, error } = await supabase.from("courses").select("id, title, status, professor_id").eq("id", courseId).single();
       if (error) throw error;
       return data;
     },
@@ -39,7 +38,7 @@ export default function CourseEditor() {
   const { data: lectures = [] } = useQuery({
     queryKey: ["editor-lectures", courseId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("lectures").select("*").eq("course_id", courseId).order("order_index");
+      const { data, error } = await supabase.from("lectures").select("id, title, type, order_index, duration_minutes, section_name").eq("course_id", courseId).order("order_index");
       if (error) throw error;
       return data || [];
     },
@@ -89,7 +88,7 @@ export default function CourseEditor() {
     queryClient.invalidateQueries(["editor-lectures", courseId]);
   };
 
-  if (isLoading) return <LoadingSpinner />;
+  if (isLoading) return <PageSkeleton variant="detail" />;
   if (!course) return <div className="text-center py-20 text-gray-500">Course not found</div>;
 
   const statusActions = {
@@ -112,12 +111,12 @@ export default function CourseEditor() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowHistory(true)} className="rounded-xl text-xs">History</Button>
-          <Button variant="outline" size="sm" onClick={() => setShowAI(!showAI)} className="rounded-xl text-xs">✨ AI Generate</Button>
+          <Link to={createPageUrl(`CoursePlayer?id=${courseId}`)}><Button variant="outline" size="sm" className="rounded-xl text-xs gap-1"><Eye className="w-3.5 h-3.5" />Preview as Student</Button></Link>
           {statusAction && (<Button size="sm" onClick={statusAction.action} disabled={statusMutation.isPending} className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl text-xs gap-1"><statusAction.icon className="w-3.5 h-3.5" />{statusAction.label}</Button>)}
         </div>
       </div>
 
-      {showAI && (<div className="mb-6"><AIGeneratePanel courseId={courseId} userId={user?.id} userName={profile?.full_name} onGenerated={() => { queryClient.invalidateQueries(["editor-lectures", courseId]); setShowAI(false); }} /></div>)}
+
 
       <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -144,8 +143,8 @@ export default function CourseEditor() {
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => { setEditingLecture(lecture); setShowLectureForm(true); }}>Edit</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setShowQuizBuilder(lecture.id)}>Add Quiz</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => { setEditingLecture(lecture); setLectureFormTab("transcript"); setShowLectureForm(true); }}>Edit</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => { setEditingLecture(lecture); setLectureFormTab("quiz"); setShowLectureForm(true); }}>Add Quiz</DropdownMenuItem>
                               <DropdownMenuItem className="text-red-600" onClick={() => deleteLectureMutation.mutate(lecture.id)}>Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -161,8 +160,7 @@ export default function CourseEditor() {
         )}
       </div>
 
-      {showLectureForm && (<LectureForm courseId={courseId} lecture={editingLecture} userId={user?.id} onClose={() => { setShowLectureForm(false); setEditingLecture(null); }} onSaved={() => { queryClient.invalidateQueries(["editor-lectures", courseId]); setShowLectureForm(false); setEditingLecture(null); }} />)}
-      {showQuizBuilder && (<ManualQuizBuilder courseId={courseId} lectureId={showQuizBuilder} onClose={() => setShowQuizBuilder(null)} />)}
+      {showLectureForm && (<LectureForm courseId={courseId} existingLecture={editingLecture} course={course} orderIndex={lectures.length} defaultTab={lectureFormTab} onCancel={() => { setShowLectureForm(false); setEditingLecture(null); }} onSaved={() => { queryClient.invalidateQueries(["editor-lectures", courseId]); setShowLectureForm(false); setEditingLecture(null); }} />)}
       {showHistory && (<CourseHistory courseId={courseId} onClose={() => setShowHistory(false)} />)}
     </div>
   );

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Trash2, Sparkles } from "lucide-react";
 
 export default function ManualQuizBuilder({ questions, onChange, transcript, lectureTitle, onAutoGenerate }) {
-  const [generatingAI, setGeneratingAI] = useState(false);
+
 
   const addQuestion = () => {
     onChange([...questions, { question_type: "multiple_choice", question_text: "", choices: ["", "", "", ""], correct_index: 0, correct_answer: "", source_timestamp: "" }]);
@@ -17,31 +17,13 @@ export default function ManualQuizBuilder({ questions, onChange, transcript, lec
   const updateChoice = (qIndex, cIndex, value) => { const updated = [...questions]; updated[qIndex].choices[cIndex] = value; onChange(updated); };
   const deleteQuestion = (index) => onChange(questions.filter((_, i) => i !== index));
 
-  const handleAutoGenerate = async () => {
-    if (!transcript && !lectureTitle) return;
-    setGeneratingAI(true);
-    // Stub: Generate placeholder quiz questions
-    await new Promise(r => setTimeout(r, 800));
-    const generated = [
-      { question_type: "multiple_choice", question_text: `What is the main concept discussed in "${lectureTitle || "this lecture"}"?`, choices: ["Concept A", "Concept B", "Concept C", "Concept D"], correct_index: 0, correct_answer: "", source_timestamp: "" },
-      { question_type: "short_answer", question_text: "Explain the key takeaway from this lecture in your own words.", choices: [], correct_index: 0, correct_answer: "The key takeaway involves understanding the core principles.", source_timestamp: "" },
-    ];
-    onChange(generated);
-    setGeneratingAI(false);
-    if (onAutoGenerate) onAutoGenerate();
-  };
+
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Label className="text-sm text-gray-700">Quiz Questions ({questions.length})</Label>
         <div className="flex gap-2">
-          {(transcript || lectureTitle) && (
-            <Button type="button" variant="outline" size="sm" onClick={handleAutoGenerate} disabled={generatingAI} className="text-xs gap-1 rounded-lg">
-              {generatingAI ? <div className="w-3 h-3 border-2 border-[#00a98d] border-t-transparent rounded-full animate-spin" /> : <Sparkles className="w-3 h-3" />}
-              AI Generate
-            </Button>
-          )}
           <Button type="button" variant="outline" size="sm" onClick={addQuestion} className="text-xs gap-1 rounded-lg"><Plus className="w-3 h-3" />Add Question</Button>
         </div>
       </div>

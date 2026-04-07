@@ -5,14 +5,14 @@ import CourseCard from "@/components/shared/CourseCard";
 import { Button } from "@/components/ui/button";
 import { Sparkles, RefreshCw } from "lucide-react";
 
-export default function RecommendedCourses({ user, enrollments, learningPaths }) {
+export default function RecommendedCourses({ userId, enrolledCourseIds = [], enrollments, learningPaths }) {
   const [recommendations, setRecommendations] = useState(null);
   const [generating, setGenerating] = useState(false);
 
   const { data: allCourses = [] } = useQuery({
     queryKey: ["all-published-courses"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("courses").select("*").eq("status", "published");
+      const { data, error } = await supabase.from("courses").select("id, title, short_description, category, difficulty_level, tags, professor_name, thumbnail_url, enrollment_count").eq("status", "published");
       if (error) throw error;
       return data || [];
     },
@@ -21,14 +21,14 @@ export default function RecommendedCourses({ user, enrollments, learningPaths })
   const generateRecommendations = async () => {
     setGenerating(true);
 
-    const enrolledCourseIds = enrollments.map(e => e.course_id);
-    const availableCourses = allCourses.filter(c => !enrolledCourseIds.includes(c.id));
+    const enrolledIds = enrolledCourseIds.length > 0 ? enrolledCourseIds : (enrollments || []).map(e => e.course_id);
+    const availableCourses = allCourses.filter(c => !enrolledIds.includes(c.id));
 
     // Stub: Simple category/difficulty-based recommendations instead of AI LLM
     await new Promise(r => setTimeout(r, 600));
 
     // Find courses in similar categories
-    const enrolledCourses = allCourses.filter(c => enrolledCourseIds.includes(c.id));
+    const enrolledCourses = allCourses.filter(c => enrolledIds.includes(c.id));
     const categories = [...new Set(enrolledCourses.map(c => c.category).filter(Boolean))];
     const domains = learningPaths?.map(lp => lp.domain?.toLowerCase()) || [];
 

@@ -8,7 +8,6 @@ import CourseEditor from "./pages/CourseEditor";
 import CoursePlayer from "./pages/CoursePlayer";
 import CreateCourse from "./pages/CreateCourse";
 import LearningPaths from "./pages/LearningPaths";
-import Login from "./pages/Login";
 import MyLearning from "./pages/MyLearning";
 import ProfessorCourses from "./pages/ProfessorCourses";
 import ProfessorDashboard from "./pages/ProfessorDashboard";
@@ -26,7 +25,6 @@ export const PAGES = {
   CoursePlayer: CoursePlayer,
   CreateCourse: CreateCourse,
   LearningPaths: LearningPaths,
-  Login: Login,
   MyLearning: MyLearning,
   ProfessorCourses: ProfessorCourses,
   ProfessorDashboard: ProfessorDashboard,

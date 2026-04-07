@@ -2,7 +2,7 @@ import React from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import LoadingSpinner from "@/components/shared/LoadingSpinner";
+import PageSkeleton from "@/components/shared/PageSkeleton";
 import AchievementBadge from "@/components/gamification/AchievementBadge";
 import Leaderboard from "@/components/gamification/Leaderboard";
 import { Trophy, Award, Star, TrendingUp } from "lucide-react";
@@ -15,7 +15,7 @@ export default function StudentAchievements() {
   const { data: stats, isLoading: loadingStats } = useQuery({
     queryKey: ["student-stats", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("student_stats").select("*").eq("user_id", user.id).maybeSingle();
+      const { data, error } = await supabase.from("student_stats").select("id, total_points, level, courses_completed, quizzes_completed, perfect_quiz_count, current_streak_days, longest_streak_days").eq("user_id", user.id).maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -25,14 +25,14 @@ export default function StudentAchievements() {
   const { data: achievements = [] } = useQuery({
     queryKey: ["student-achievements", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("achievements").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("achievements").select("id, achievement_type, badge_name, badge_description, badge_icon, points_awarded, created_at").eq("user_id", user.id).order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
     enabled: !!user,
   });
 
-  if (loadingStats) return <LoadingSpinner />;
+  if (loadingStats) return <PageSkeleton variant="dashboard" />;
 
   const levelProgress = stats ? ((stats.total_points % 1000) / 1000) * 100 : 0;
   const nextLevelPoints = stats ? 1000 - (stats.total_points % 1000) : 1000;

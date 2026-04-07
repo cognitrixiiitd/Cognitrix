@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import LoadingSpinner from "../components/shared/LoadingSpinner";
+import PageSkeleton from "../components/shared/PageSkeleton";
 import StatCard from "../components/shared/StatCard";
 import EngagementInsights from "@/components/analytics/EngagementInsights";
 import QuizAnalysis from "@/components/analytics/QuizAnalysis";
@@ -22,36 +22,36 @@ export default function Analytics() {
 
   const { data: courses = [], isLoading: loadingCourses } = useQuery({
     queryKey: ["analytics-courses", user?.id],
-    queryFn: async () => { const { data } = await supabase.from("courses").select("*").eq("professor_id", user.id); return data || []; },
+    queryFn: async () => { const { data } = await supabase.from("courses").select("id, title").eq("professor_id", user.id); return data || []; },
     enabled: !!user?.id,
   });
 
   const courseIds = courses.map(c => c.id);
   const { data: enrollments = [], isLoading: loadingEnrollments } = useQuery({
     queryKey: ["analytics-enrollments", courseIds.join(",")],
-    queryFn: async () => { if (!courseIds.length) return []; const { data } = await supabase.from("enrollments").select("*").in("course_id", courseIds); return data || []; },
+    queryFn: async () => { if (!courseIds.length) return []; const { data } = await supabase.from("enrollments").select("id, course_id, student_id, student_name, student_email, progress_percent, status, time_spent_minutes, quiz_scores").in("course_id", courseIds); return data || []; },
     enabled: courseIds.length > 0,
   });
 
   const { data: stuckFlags = [] } = useQuery({
     queryKey: ["analytics-stuck", courseIds.join(",")],
-    queryFn: async () => { if (!courseIds.length) return []; const { data } = await supabase.from("questions").select("*").in("course_id", courseIds).eq("is_stuck_flag", true); return data || []; },
+    queryFn: async () => { if (!courseIds.length) return []; const { data } = await supabase.from("questions").select("id, course_id").in("course_id", courseIds).eq("is_stuck_flag", true); return data || []; },
     enabled: courseIds.length > 0,
   });
 
   const { data: lectures = [] } = useQuery({
     queryKey: ["analytics-lectures", courseIds.join(",")],
-    queryFn: async () => { if (!courseIds.length) return []; const { data } = await supabase.from("lectures").select("*").in("course_id", courseIds); return data || []; },
+    queryFn: async () => { if (!courseIds.length) return []; const { data } = await supabase.from("lectures").select("id, course_id, title").in("course_id", courseIds); return data || []; },
     enabled: courseIds.length > 0,
   });
 
   const { data: questions = [] } = useQuery({
     queryKey: ["analytics-questions", courseIds.join(",")],
-    queryFn: async () => { if (!courseIds.length) return []; const { data } = await supabase.from("questions").select("*").in("course_id", courseIds).eq("is_stuck_flag", false); return data || []; },
+    queryFn: async () => { if (!courseIds.length) return []; const { data } = await supabase.from("questions").select("id, course_id, text, user_name, created_at").in("course_id", courseIds).eq("is_stuck_flag", false); return data || []; },
     enabled: courseIds.length > 0,
   });
 
-  if (loadingCourses || loadingEnrollments) return <LoadingSpinner />;
+  if (loadingCourses || loadingEnrollments) return <PageSkeleton variant="dashboard" />;
 
   const filteredEnrollments = selectedCourse === "all" ? enrollments : enrollments.filter(e => e.course_id === selectedCourse);
   const totalStudents = new Set(filteredEnrollments.map(e => e.student_id)).size;

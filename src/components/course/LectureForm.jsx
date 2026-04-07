@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import ManualQuizBuilder from "./ManualQuizBuilder";
 import VideoSegmentBuilder from "./VideoSegmentBuilder";
-import { Upload, Link as LinkIcon, Save, X, Sparkles, FileText, Video } from "lucide-react";
+import { Upload, Link as LinkIcon, Save, X, FileText, Video } from "lucide-react";
 
-export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, course, existingLecture, sections = [] }) {
+export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, course, existingLecture, sections = [], defaultTab = "transcript" }) {
   const { user, profile } = useAuth();
   const [form, setForm] = useState(existingLecture ? {
     title: existingLecture.title || "", type: existingLecture.type || "youtube", source_url: existingLecture.source_url || "",
@@ -22,19 +22,33 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
   const [videoSegments, setVideoSegments] = useState([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [generatingTranscript, setGeneratingTranscript] = useState(false);
 
+  useEffect(() => {
+    if (existingLecture) {
+      const loadQuiz = async () => {
+        const { data } = await supabase.from("quizzes").select("*, quiz_questions(*)").eq("lecture_id", existingLecture.id).order('created_at', { ascending: false });
+        if (data && data.length > 0 && data[0].quiz_questions) {
+          // Sort questions by order_index just to be safe
+          const sorted = [...data[0].quiz_questions].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+          setQuizQuestions(sorted);
+        }
+      };
+      loadQuiz();
+    }
+  }, [existingLecture]);
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    // Upload to Supabase Storage
-    const fileName = `${Date.now()}_${file.name}`;
-    const { data, error } = await supabase.storage.from("lecture-files").upload(fileName, file);
-    if (!error) {
-      const { data: urlData } = supabase.storage.from("lecture-files").getPublicUrl(fileName);
-      setForm(prev => ({ ...prev, source_url: urlData.publicUrl, type: file.type.includes("video") ? "video" : "pdf" }));
+    const filePath = `${courseId}/${Date.now()}_${file.name}`;
+    const { data, error } = await supabase.storage.from("lectures").upload(filePath, file);
+    if (error) {
+      console.error("Upload error:", error);
+      setUploading(false);
+      return;
     }
+    const { data: urlData } = supabase.storage.from("lectures").getPublicUrl(filePath);
+    setForm(prev => ({ ...prev, source_url: urlData.publicUrl, type: file.type.includes("video") ? "video" : "pdf" }));
     setUploading(false);
   };
 
@@ -42,28 +56,53 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
     const file = e.target.files?.[0];
     if (!file) return;
     const fileName = `${Date.now()}_${file.name}`;
-    const { data, error } = await supabase.storage.from("lecture-files").upload(`attachments/${fileName}`, file);
-    if (!error) {
-      const { data: urlData } = supabase.storage.from("lecture-files").getPublicUrl(`attachments/${fileName}`);
-      setForm(prev => ({ ...prev, attachments: [...prev.attachments, { name: file.name, url: urlData.publicUrl }] }));
-    }
+    const { data, error } = await supabase.storage.from("lectures").upload(`attachments/${courseId}/${fileName}`, file);
+    if (error) { console.error("Attachment upload error:", error); return; }
+    const { data: urlData } = supabase.storage.from("lectures").getPublicUrl(`attachments/${courseId}/${fileName}`);
+    setForm(prev => ({ ...prev, attachments: [...prev.attachments, { name: file.name, url: urlData.publicUrl }] }));
   };
 
   const removeAttachment = (index) => setForm(prev => ({ ...prev, attachments: prev.attachments.filter((_, i) => i !== index) }));
 
-  const generateTranscript = async () => {
-    if (!form.source_url) return;
-    setGeneratingTranscript(true);
-    // Stub placeholder
-    await new Promise(r => setTimeout(r, 600));
-    setForm(prev => ({ ...prev, transcript_text: `[Transcript placeholder for "${form.title || "Untitled"}"]\n\nPaste the actual transcript here or connect an AI transcription service.` }));
-    setGeneratingTranscript(false);
-  };
+
 
   const timeToSeconds = (timeStr) => {
     if (!timeStr) return 0;
     const parts = timeStr.split(":");
     return parts.length === 2 ? parseInt(parts[0]) * 60 + parseInt(parts[1]) : parseInt(timeStr);
+  };
+
+  const saveQuizAndQuestions = async (courseId, lectureId, title, quizQuestions) => {
+    if (!quizQuestions || quizQuestions.length === 0) return;
+    
+    const { data: existingQuizzes } = await supabase.from("quizzes").select("*").eq("lecture_id", lectureId);
+    let quizId;
+    if (existingQuizzes?.length > 0) {
+      quizId = existingQuizzes[0].id;
+      await supabase.from("quizzes").update({ total_points: quizQuestions.length * 10 }).eq("id", quizId);
+      await supabase.from("quiz_questions").delete().eq("quiz_id", quizId);
+    } else {
+      const { data: newQuiz } = await supabase.from("quizzes").insert({ 
+        course_id: courseId, 
+        lecture_id: lectureId, 
+        title: `Quiz: ${title}`, 
+        total_points: quizQuestions.length * 10 
+      }).select().single();
+      if (newQuiz) quizId = newQuiz.id;
+    }
+    
+    if (quizId) {
+      const questionsToInsert = quizQuestions.map((q, i) => {
+        // Strip out the ID if any, so we strictly insert a fresh row
+        const { id, created_at, quiz_id, ...questionData } = q;
+        return {
+          ...questionData,
+          quiz_id: quizId,
+          order_index: i
+        };
+      });
+      await supabase.from("quiz_questions").insert(questionsToInsert);
+    }
   };
 
   const handleSave = async () => {
@@ -73,12 +112,11 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
     if (existingLecture) {
       await supabase.from("lectures").update(form).eq("id", existingLecture.id);
       if (quizQuestions.length > 0) {
+        await saveQuizAndQuestions(courseId, existingLecture.id, form.title, quizQuestions);
+      } else {
+        // If they cleared out all questions, we should clean up the quiz completely
         const { data: existingQuizzes } = await supabase.from("quizzes").select("*").eq("lecture_id", existingLecture.id);
-        if (existingQuizzes?.length > 0) {
-          await supabase.from("quizzes").update({ questions: quizQuestions, total_points: quizQuestions.length * 10 }).eq("id", existingQuizzes[0].id);
-        } else {
-          await supabase.from("quizzes").insert({ course_id: courseId, lecture_id: existingLecture.id, title: `Quiz: ${form.title}`, questions: quizQuestions, total_points: quizQuestions.length * 10 });
-        }
+        if (existingQuizzes?.length > 0) await supabase.from("quizzes").delete().eq("id", existingQuizzes[0].id);
       }
       await supabase.from("course_revisions").insert({ course_id: courseId, changed_by_user_id: user.id, change_type: "manual_edit", change_description: `Updated lecture: ${form.title}`, snapshot_data: { lecture_id: existingLecture.id } });
       setSaving(false); onSaved(); return;
@@ -95,14 +133,14 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
           topic_timestamps: [{ topic: seg.title, start: seg.start_time, end: seg.end_time }], attachments: form.attachments,
         }).select().single();
         if (lecture && quizQuestions.length > 0) {
-          await supabase.from("quizzes").insert({ course_id: courseId, lecture_id: lecture.id, title: `Quiz: ${seg.title || form.title}`, questions: quizQuestions, total_points: quizQuestions.length * 10 });
+          await saveQuizAndQuestions(courseId, lecture.id, seg.title || form.title, quizQuestions);
         }
       }
       await supabase.from("course_revisions").insert({ course_id: courseId, changed_by_user_id: user.id, change_type: "lecture_added", change_description: `Added ${videoSegments.length} lecture segments from: ${form.title}`, snapshot_data: { segments: videoSegments.length } });
     } else {
       const { data: lecture } = await supabase.from("lectures").insert({ ...form, course_id: courseId, order_index: orderIndex }).select().single();
       if (lecture && quizQuestions.length > 0) {
-        await supabase.from("quizzes").insert({ course_id: courseId, lecture_id: lecture.id, title: `Quiz: ${form.title}`, questions: quizQuestions, total_points: quizQuestions.length * 10 });
+        await saveQuizAndQuestions(courseId, lecture.id, form.title, quizQuestions);
       }
       await supabase.from("course_revisions").insert({ course_id: courseId, changed_by_user_id: user.id, change_type: "lecture_added", change_description: `Added lecture: ${form.title}`, snapshot_data: { lecture_title: form.title, lecture_type: form.type, quiz_questions: quizQuestions.length } });
     }
@@ -145,10 +183,10 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
         </div>
       </div>
 
-      <Tabs defaultValue="transcript" className="space-y-4">
+      <Tabs defaultValue={defaultTab} className="space-y-4">
         <TabsList className="bg-gray-100 rounded-xl"><TabsTrigger value="transcript" className="rounded-lg text-xs">Transcript</TabsTrigger>{isVideoType && <TabsTrigger value="segments" className="rounded-lg text-xs gap-1"><Video className="w-3 h-3" />Segments</TabsTrigger>}<TabsTrigger value="quiz" className="rounded-lg text-xs">Quiz</TabsTrigger></TabsList>
         <TabsContent value="transcript" className="space-y-3">
-          <div className="flex items-center justify-between"><Label className="text-sm text-gray-700">Transcript</Label><Button type="button" variant="outline" size="sm" onClick={generateTranscript} disabled={generatingTranscript || !form.source_url} className="text-xs gap-1 rounded-lg">{generatingTranscript ? <div className="w-3 h-3 border-2 border-[#00a98d] border-t-transparent rounded-full animate-spin" /> : <Sparkles className="w-3 h-3" />}AI Generate</Button></div>
+          <Label className="text-sm text-gray-700">Transcript</Label>
           <Textarea placeholder="Paste transcript here or use AI to generate a template..." value={form.transcript_text} onChange={(e) => setForm(prev => ({ ...prev, transcript_text: e.target.value }))} className="rounded-xl border-gray-200 text-sm h-32 resize-none" />
         </TabsContent>
         {isVideoType && <TabsContent value="segments"><VideoSegmentBuilder segments={videoSegments} onChange={setVideoSegments} videoUrl={form.source_url} /></TabsContent>}

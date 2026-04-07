@@ -1,7 +1,10 @@
-import React, { createContext, useState, useContext, useEffect } from "react";
+import React, { createContext, useState, useContext, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { queryClientInstance } from "@/lib/query-client";
 
 const AuthContext = createContext(null);
+
+const AUTH_TIMEOUT_MS = 10000; // 10 second safety net
 
 export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
@@ -9,37 +12,55 @@ export const AuthProvider = ({ children }) => {
   const [profile, setProfile] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [authTimedOut, setAuthTimedOut] = useState(false);
+  const timeoutRef = useRef(null);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      if (s?.user) {
-        setUser(s.user);
-        setIsAuthenticated(true);
-        fetchProfile(s.user.id, s.user.user_metadata);
-      }
-      setIsLoadingAuth(false);
-    });
+    // Safety timeout: if auth doesn't resolve in 10s, force-unblock the UI
+    timeoutRef.current = setTimeout(() => {
+      setIsLoadingAuth((prev) => {
+        if (prev) {
+          console.warn("[Auth] Timed out waiting for session — unblocking UI");
+          setAuthTimedOut(true);
+          return false;
+        }
+        return prev;
+      });
+    }, AUTH_TIMEOUT_MS);
 
-    // Listen for auth changes
+    // Single source of truth: onAuthStateChange handles INITIAL_SESSION + all subsequent events
+    // This eliminates the race condition between getSession() and onAuthStateChange
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, s) => {
+      async (event, s) => {
         setSession(s);
         if (s?.user) {
           setUser(s.user);
           setIsAuthenticated(true);
-          await fetchProfile(s.user.id, s.user.user_metadata);
+          // fetchProfile in try/catch so it never blocks isLoadingAuth
+          try {
+            // Do not await fetchProfile to prevent hanging the auth listener if the DB calls get stuck
+            fetchProfile(s.user.id, s.user.user_metadata).catch(err => {
+              console.error("[Auth] fetchProfile failed:", err);
+            });
+          } catch (err) {
+            console.error("[Auth] fetchProfile dispatch failed:", err);
+          }
         } else {
           setUser(null);
           setProfile(null);
           setIsAuthenticated(false);
         }
         setIsLoadingAuth(false);
+        setAuthTimedOut(false);
+        // Clear the safety timeout since auth resolved normally
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
   }, []);
 
   const fetchProfile = async (userId, userMetadata = null) => {
@@ -49,23 +70,34 @@ export const AuthProvider = ({ children }) => {
       .eq("id", userId)
       .maybeSingle();
 
-    if (!error && data) {
+    if (error) {
+      console.error("[Auth] Profile fetch error:", error);
+      // Don't throw — let auth continue without profile
+      return;
+    }
+
+    if (data) {
       setProfile(data);
-    } else if (!data && userMetadata) {
-      // Profile doesn't exist yet but user is logged in (First time login)
-      // Insert the profile now using the metadata saved during signUp
-      const { data: newProfile, error: insertError } = await supabase
-        .from("profiles")
-        .insert({
-          id: userId,
-          full_name: userMetadata.full_name || "User",
-          role: userMetadata.role || "student",
-        })
-        .select()
-        .single();
-      
-      if (!insertError && newProfile) {
-        setProfile(newProfile);
+    } else if (userMetadata) {
+      // Profile doesn't exist yet — first-time login, create it
+      try {
+        const { data: newProfile, error: insertError } = await supabase
+          .from("profiles")
+          .insert({
+            id: userId,
+            full_name: userMetadata.full_name || "User",
+            role: userMetadata.role || "student",
+          })
+          .select()
+          .single();
+
+        if (!insertError && newProfile) {
+          setProfile(newProfile);
+        } else if (insertError) {
+          console.error("[Auth] Profile insert error:", insertError);
+        }
+      } catch (err) {
+        console.error("[Auth] Profile insert exception:", err);
       }
     }
   };
@@ -80,7 +112,6 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signUp = async (email, password, fullName, role) => {
-    // Pass custom data to user_metadata so it's safely saved in Supabase
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -88,23 +119,54 @@ export const AuthProvider = ({ children }) => {
         data: {
           full_name: fullName,
           role: role,
-        }
-      }
+        },
+      },
     });
     if (error) throw error;
-    
-    // We do NOT manualy insert into profiles here because if Email Confirmations
-    // are ON, session is null and RLS will block the insert.
-    // Instead, the insertion is handled securely in fetchProfile on their first sign in.
     return data;
   };
 
   const signOut = async () => {
+    // 1. Sign out from Supabase (clears server session + cookies)
     await supabase.auth.signOut();
+
+    // 2. Clear all local state
     setUser(null);
     setProfile(null);
     setSession(null);
     setIsAuthenticated(false);
+
+    // 3. Flush React Query cache — prevents stale data on re-login
+    queryClientInstance.clear();
+
+    // 4. Clear any lingering auth data from localStorage
+    try {
+      const keys = Object.keys(localStorage);
+      keys.forEach((key) => {
+        if (key.startsWith("sb-") || key.includes("supabase")) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (e) {
+      // localStorage might not be available
+    }
+  };
+
+  const retryAuth = () => {
+    setIsLoadingAuth(true);
+    setAuthTimedOut(false);
+    // Force a fresh session check
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      if (s?.user) {
+        setSession(s);
+        setUser(s.user);
+        setIsAuthenticated(true);
+        fetchProfile(s.user.id, s.user.user_metadata).catch(() => {});
+      }
+      setIsLoadingAuth(false);
+    }).catch(() => {
+      setIsLoadingAuth(false);
+    });
   };
 
   return (
@@ -115,11 +177,13 @@ export const AuthProvider = ({ children }) => {
         profile,
         isAuthenticated,
         isLoadingAuth,
+        authTimedOut,
         isLoadingPublicSettings: false,
         authError: null,
         signIn,
         signUp,
         signOut,
+        retryAuth,
         // Legacy compat
         logout: signOut,
         navigateToLogin: () => {},

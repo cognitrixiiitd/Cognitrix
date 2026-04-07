@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPageUrl } from "../utils";
 import { Link } from "react-router-dom";
-import LoadingSpinner from "../components/shared/LoadingSpinner";
+import PageSkeleton from "../components/shared/PageSkeleton";
 import EmptyState from "../components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ export default function LearningPaths() {
   const { data: paths = [], isLoading } = useQuery({
     queryKey: ["learning-paths", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("learning_paths").select("*").eq("student_id", user.id).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("learning_paths").select("id, title, domain, student_level, steps, progress_percent, status, career_goal, created_at").eq("student_id", user.id).order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -36,7 +36,7 @@ export default function LearningPaths() {
   const { data: courses = [] } = useQuery({
     queryKey: ["all-published-courses"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("courses").select("*").eq("status", "published");
+      const { data, error } = await supabase.from("courses").select("id, title, estimated_hours").eq("status", "published");
       if (error) throw error;
       return data || [];
     },
@@ -44,61 +44,56 @@ export default function LearningPaths() {
 
   const generatePath = async () => {
     setGenerating(true);
-    // Stub: Generate a mock learning path since AI integration is not yet connected
     const mockSteps = courses.slice(0, Math.min(5, courses.length)).map((c, i) => ({
-      step_order: i + 1,
-      title: c.title,
-      type: "internal_course",
-      target_id_or_link: c.id,
-      estimated_hours: c.estimated_hours || 5,
-      why: `Recommended based on your ${genForm.domain} learning goal`,
-      completed: false,
+      step_order: i + 1, title: c.title, type: "internal_course",
+      target_id_or_link: c.id, estimated_hours: c.estimated_hours || 5,
+      why: `Recommended based on your ${genForm.domain} learning goal`, completed: false,
     }));
 
     if (mockSteps.length === 0) {
       mockSteps.push({
-        step_order: 1,
-        title: `Introduction to ${genForm.domain}`,
-        type: "topic",
-        target_id_or_link: "",
-        estimated_hours: 10,
-        why: "Start with the fundamentals",
-        completed: false,
+        step_order: 1, title: `Introduction to ${genForm.domain}`, type: "topic",
+        target_id_or_link: "", estimated_hours: 10,
+        why: "Start with the fundamentals", completed: false,
       });
     }
 
     await supabase.from("learning_paths").insert({
       student_id: user.id,
       title: `${genForm.career_goal || genForm.domain} Learning Path`,
-      domain: genForm.domain,
-      career_goal: genForm.career_goal,
-      student_level: genForm.level,
-      steps: mockSteps,
-      confidence_score: 0.8,
-      status: "active",
-      progress_percent: 0,
+      domain: genForm.domain, career_goal: genForm.career_goal,
+      student_level: genForm.level, steps: mockSteps,
+      confidence_score: 0.8, status: "active", progress_percent: 0,
     });
 
     setGenerating(false);
     setShowGenerator(false);
     setGenForm({ domain: "", career_goal: "", level: "beginner" });
-    queryClient.invalidateQueries(["learning-paths", user?.id]);
+    queryClient.invalidateQueries({ queryKey: ["learning-paths", user?.id] });
   };
 
   const toggleStepComplete = async (path, stepIndex) => {
+    // Optimistic update
     const updatedSteps = [...path.steps];
     updatedSteps[stepIndex] = { ...updatedSteps[stepIndex], completed: !updatedSteps[stepIndex].completed };
     const completedCount = updatedSteps.filter(s => s.completed).length;
     const progress = Math.round((completedCount / updatedSteps.length) * 100);
-    await supabase.from("learning_paths").update({
-      steps: updatedSteps,
-      progress_percent: progress,
+
+    // Update local cache immediately
+    queryClient.setQueryData(["learning-paths", user?.id], (old) =>
+      (old || []).map(p => p.id === path.id ? { ...p, steps: updatedSteps, progress_percent: progress, status: progress === 100 ? "completed" : "active" } : p)
+    );
+
+    // Fire DB in background
+    supabase.from("learning_paths").update({
+      steps: updatedSteps, progress_percent: progress,
       status: progress === 100 ? "completed" : "active",
-    }).eq("id", path.id);
-    queryClient.invalidateQueries(["learning-paths", user?.id]);
+    }).eq("id", path.id).then(({ error }) => {
+      if (error) queryClient.invalidateQueries({ queryKey: ["learning-paths", user?.id] });
+    });
   };
 
-  if (isLoading) return <LoadingSpinner />;
+  if (isLoading) return <PageSkeleton variant="list" />;
 
   return (
     <div>

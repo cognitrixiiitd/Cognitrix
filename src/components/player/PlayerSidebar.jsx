@@ -1,36 +1,55 @@
 import React, { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle, Circle, Play, FileText, Video, ExternalLink, Send } from "lucide-react";
 
 const typeIcons = { video: Video, youtube: Play, pdf: FileText, slides: FileText, notes: FileText, external_link: ExternalLink };
 
-export default function PlayerSidebar({ lectures, currentIndex, onSelect, completedLectures, showQA, courseId, lectureId, user }) {
+export default function PlayerSidebar({ lectures, currentIndex, onSelect, completedLectures, showQA, courseId, lectureId, user, profile }) {
   const [questionText, setQuestionText] = useState("");
   const queryClient = useQueryClient();
 
   const { data: questions = [] } = useQuery({
     queryKey: ["lecture-questions", lectureId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("questions").select("*").eq("lecture_id", lectureId).eq("is_stuck_flag", false).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("questions").select("id, text, user_name, answers, created_at").eq("lecture_id", lectureId).eq("is_stuck_flag", false).order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
     enabled: !!lectureId && showQA,
   });
 
-  const askMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("questions").insert({
-        user_id: user.id, user_name: user.full_name || user.email, course_id: courseId,
-        lecture_id: lectureId, text: questionText, status: "open", is_stuck_flag: false, answers: [],
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => { setQuestionText(""); queryClient.invalidateQueries(["lecture-questions", lectureId]); },
-  });
+  const handleAsk = () => {
+    if (!questionText.trim() || !user) return;
+
+    const optimisticQuestion = {
+      id: `temp-${Date.now()}`,
+      text: questionText,
+      user_name: profile?.full_name || user.email,
+      answers: [],
+      created_at: new Date().toISOString(),
+    };
+
+    // Optimistic: add to local list immediately
+    queryClient.setQueryData(["lecture-questions", lectureId], (old) => [optimisticQuestion, ...(old || [])]);
+    const savedText = questionText;
+    setQuestionText("");
+
+    // Fire in background
+    supabase.from("questions").insert({
+      user_id: user.id, user_name: profile?.full_name || user.email, course_id: courseId,
+      lecture_id: lectureId, text: savedText, status: "open", is_stuck_flag: false, answers: [],
+    }).then(({ error }) => {
+      if (error) {
+        // Revert on failure
+        queryClient.setQueryData(["lecture-questions", lectureId], (old) => (old || []).filter(q => q.id !== optimisticQuestion.id));
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["lecture-questions", lectureId] });
+      }
+    });
+  };
 
   return (
     <div className="w-full lg:w-80 border-l border-gray-100 bg-white overflow-y-auto">
@@ -50,7 +69,7 @@ export default function PlayerSidebar({ lectures, currentIndex, onSelect, comple
           </div>
           <div className="flex gap-2">
             <Textarea placeholder="Ask a question..." value={questionText} onChange={(e) => setQuestionText(e.target.value)} className="rounded-xl border-gray-200 text-sm h-16 resize-none" />
-            <Button size="icon" onClick={() => questionText.trim() && askMutation.mutate()} disabled={!questionText.trim() || askMutation.isPending} className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl flex-shrink-0"><Send className="w-4 h-4" /></Button>
+            <Button size="icon" onClick={handleAsk} disabled={!questionText.trim()} className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl flex-shrink-0"><Send className="w-4 h-4" /></Button>
           </div>
         </div>
       ) : (

@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createPageUrl } from "../utils";
 import { Link } from "react-router-dom";
-import LoadingSpinner from "../components/shared/LoadingSpinner";
+import PageSkeleton from "../components/shared/PageSkeleton";
 import PlayerSidebar from "@/components/player/PlayerSidebar";
 import QuizModule from "@/components/player/QuizModule";
 import BookmarkButton from "@/components/player/BookmarkButton";
@@ -36,6 +36,7 @@ export default function CoursePlayer() {
   const [lastSeekTime, setLastSeekTime] = useState(0);
   const [newAchievement, setNewAchievement] = useState(null);
   const [justCompletedId, setJustCompletedId] = useState(null);
+  const [stuckSent, setStuckSent] = useState(false);
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -43,7 +44,7 @@ export default function CoursePlayer() {
     const initStats = async () => {
       const { data } = await supabase
         .from("student_stats")
-        .select("*")
+        .select("id")
         .eq("user_id", user.id)
         .maybeSingle();
       if (!data) {
@@ -60,6 +61,7 @@ export default function CoursePlayer() {
     }
     setWatchTimeStart(Date.now());
     setJustCompletedId(null);
+    setStuckSent(false);
   }, [currentLectureIndex]);
 
   useEffect(() => {
@@ -69,7 +71,7 @@ export default function CoursePlayer() {
   const { data: course, isLoading } = useQuery({
     queryKey: ["player-course", courseId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("courses").select("*").eq("id", courseId).single();
+      const { data, error } = await supabase.from("courses").select("id, title, enrollment_count").eq("id", courseId).single();
       if (error) throw error;
       return data;
     },
@@ -79,7 +81,7 @@ export default function CoursePlayer() {
   const { data: lectures = [] } = useQuery({
     queryKey: ["player-lectures", courseId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("lectures").select("*").eq("course_id", courseId).order("order_index");
+      const { data, error } = await supabase.from("lectures").select("id, title, type, source_url, order_index, duration_minutes, transcript_text, ai_generated_description, suggested_resources, topic_timestamps, attachments, section_name").eq("course_id", courseId).order("order_index");
       if (error) throw error;
       return data || [];
     },
@@ -89,19 +91,34 @@ export default function CoursePlayer() {
   const { data: enrollment } = useQuery({
     queryKey: ["player-enrollment", courseId, user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("enrollments").select("*").eq("course_id", courseId).eq("student_id", user.id).maybeSingle();
+      const { data, error } = await supabase.from("enrollments").select("id, course_id, student_id, completed_lectures, progress_percent, time_spent_minutes, status, completed_at").eq("course_id", courseId).eq("student_id", user.id).maybeSingle();
       if (error) throw error;
       return data;
     },
     enabled: !!courseId && !!user,
   });
 
+  useEffect(() => {
+    if (!enrollment || !lectures.length) return;
+    const completedCount = enrollment.completed_lectures?.length || 0;
+    const totalActive = lectures.length;
+    const isActuallyCompleted = completedCount >= totalActive && totalActive > 0;
+    if (enrollment.status === "completed" && !isActuallyCompleted) {
+      const newProgress = Math.min(100, Math.round((completedCount / totalActive) * 100));
+      supabase.from("enrollments").update({
+        status: "active", progress_percent: newProgress, completed_at: null,
+      }).eq("id", enrollment.id).then(({ error }) => {
+        if (!error) queryClient.invalidateQueries({ queryKey: ["player-enrollment", courseId, user?.id] });
+      });
+    }
+  }, [enrollment, lectures]);
+
   const { data: quizzes = [] } = useQuery({
     queryKey: ["player-quizzes", courseId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("quizzes").select("*").eq("course_id", courseId);
+      const { data, error } = await supabase.from("quizzes").select("*, quiz_questions(*)").eq("course_id", courseId);
       if (error) throw error;
-      return data || [];
+      return data?.map(q => ({ ...q, questions: q.quiz_questions })) || [];
     },
     enabled: !!courseId,
   });
@@ -116,37 +133,32 @@ export default function CoursePlayer() {
       const watchDuration = watchTimeStart ? Math.round((Date.now() - watchTimeStart) / 1000) : 0;
 
       await supabase.from("enrollments").update({
-        completed_lectures: completed,
-        progress_percent: progress,
+        completed_lectures: completed, progress_percent: progress,
         last_accessed: new Date().toISOString(),
         time_spent_minutes: (enrollment.time_spent_minutes || 0) + Math.round(watchDuration / 60),
         status: progress === 100 ? "completed" : "active",
         completed_at: progress === 100 ? new Date().toISOString() : null,
       }).eq("id", enrollment.id);
 
-      await supabase.from("analytics_events").insert({
-        user_id: user.id,
-        course_id: courseId,
-        lecture_id: lectureId,
-        event_type: "complete",
-        timestamp_seconds: currentTime,
+      supabase.from("analytics_events").insert({
+        user_id: user.id, course_id: courseId, lecture_id: lectureId,
+        event_type: "complete", timestamp_seconds: currentTime,
         meta: { watch_duration_seconds: watchDuration, video_duration_seconds: videoDuration, playback_speed: playbackSpeed },
-      });
+      }).then(() => {});
 
       if (!wasAlreadyCompleted) {
-        const { data: stats } = await supabase.from("student_stats").select("*").eq("user_id", user.id).single();
+        const { data: stats } = await supabase.from("student_stats").select("id, total_points, level, courses_completed").eq("user_id", user.id).single();
         if (stats) {
           const newPoints = (stats.total_points || 0) + 20;
           const newLevel = Math.floor(newPoints / 1000) + 1;
           await supabase.from("student_stats").update({
-            total_points: newPoints,
-            level: newLevel,
+            total_points: newPoints, level: newLevel,
             last_active_date: new Date().toISOString().split("T")[0],
           }).eq("id", stats.id);
         }
 
         if (progress === 100) {
-          const { data: stats2 } = await supabase.from("student_stats").select("*").eq("user_id", user.id).single();
+          const { data: stats2 } = await supabase.from("student_stats").select("id, total_points, courses_completed").eq("user_id", user.id).single();
           if (stats2) {
             const newCoursesCompleted = (stats2.courses_completed || 0) + 1;
             await supabase.from("student_stats").update({
@@ -155,22 +167,23 @@ export default function CoursePlayer() {
             }).eq("id", stats2.id);
 
             const { data: achievement } = await supabase.from("achievements").insert({
-              user_id: user.id,
-              course_id: courseId,
+              user_id: user.id, course_id: courseId,
               achievement_type: newCoursesCompleted === 1 ? "first_course" : "course_completed",
               badge_name: newCoursesCompleted === 1 ? "First Course!" : "Course Completed!",
               badge_description: newCoursesCompleted === 1 ? "Completed your first course" : `Completed ${newCoursesCompleted} courses`,
-              badge_icon: "trophy",
-              points_awarded: 100,
+              badge_icon: "trophy", points_awarded: 100,
             }).select().single();
             if (achievement) setNewAchievement(achievement);
           }
         }
       }
     },
-    onSuccess: (_, lectureId) => {
+    onMutate: (lectureId) => {
+      // Optimistic: immediately show completed
       setJustCompletedId(lectureId);
-      queryClient.invalidateQueries(["player-enrollment", courseId, user?.id]);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["player-enrollment", courseId, user?.id] });
     },
   });
 
@@ -197,22 +210,25 @@ export default function CoursePlayer() {
     setLastSeekTime(newTime);
   };
 
-  const flagStuckMutation = useMutation({
-    mutationFn: async () => {
-      const cl = lectures[currentLectureIndex];
-      if (!cl || !user) return;
-      await supabase.from("questions").insert({
+  const handleStuck = () => {
+    const cl = lectures[currentLectureIndex];
+    if (!cl || !user) return;
+    // Optimistic: instant feedback
+    setStuckSent(true);
+    // Fire in background
+    Promise.all([
+      supabase.from("analytics_events").insert({
+        user_id: user.id, course_id: courseId, lecture_id: cl.id, event_type: "flag_stuck",
+      }),
+      supabase.from("questions").insert({
         user_id: user.id, user_name: profile?.full_name,
         course_id: courseId, lecture_id: cl.id,
         text: `Flagged as stuck on: ${cl.title}`, status: "open", is_stuck_flag: true,
-      });
-      await supabase.from("analytics_events").insert({
-        user_id: user.id, course_id: courseId, lecture_id: cl.id, event_type: "flag_stuck",
-      });
-    },
-  });
+      }),
+    ]).catch(() => setStuckSent(false));
+  };
 
-  if (isLoading) return <LoadingSpinner />;
+  if (isLoading) return <PageSkeleton variant="player" />;
   if (!course) return <div className="text-center py-20 text-gray-500">Course not found</div>;
 
   const currentLecture = lectures[currentLectureIndex];
@@ -238,11 +254,11 @@ export default function CoursePlayer() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => flagStuckMutation.mutate()} disabled={flagStuckMutation.isPending} className="text-xs gap-1 text-orange-500 hover:text-orange-600 hover:bg-orange-50">
-            <Flag className="w-3.5 h-3.5" /> I'm Stuck
+          <Button variant="ghost" size="sm" onClick={handleStuck} disabled={stuckSent} className="text-xs gap-1 text-orange-500 hover:text-orange-600 hover:bg-orange-50">
+            <Flag className="w-3.5 h-3.5" />{stuckSent ? "Sent!" : "I'm Stuck"}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setShowQA(!showQA)} className="text-xs gap-1">
-            <MessageSquare className="w-3.5 h-3.5" /> Q&A
+            <MessageSquare className="w-3.5 h-3.5" />Q&A
           </Button>
         </div>
       </div>
@@ -345,7 +361,7 @@ export default function CoursePlayer() {
           </div>
         </div>
 
-        <PlayerSidebar lectures={lectures} currentIndex={currentLectureIndex} onSelect={setCurrentLectureIndex} completedLectures={enrollment?.completed_lectures || []} showQA={showQA} courseId={courseId} lectureId={currentLecture?.id} user={user} />
+        <PlayerSidebar lectures={lectures} currentIndex={currentLectureIndex} onSelect={setCurrentLectureIndex} completedLectures={enrollment?.completed_lectures || []} showQA={showQA} courseId={courseId} lectureId={currentLecture?.id} user={user} profile={profile} />
       </div>
     </div>
   );

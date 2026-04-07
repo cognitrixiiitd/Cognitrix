@@ -10,7 +10,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, X, Save } from "lucide-react";
+import { ArrowLeft, Plus, X, Save, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const categories = [
@@ -36,12 +36,31 @@ export default function CreateCourse() {
   const [form, setForm] = useState({
     title: "", short_description: "", long_description: "", category: "",
     tags: [], learning_outcomes: [], prerequisites: [],
-    estimated_hours: 0, credits: 0, auto_enroll: true, status: "draft",
+    estimated_hours: 0, credits: 0, auto_enroll: true, status: "draft", thumbnail_url: "",
   });
 
   const updateField = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
   const addToArray = (field, value, setter) => { if (value.trim()) { updateField(field, [...form[field], value.trim()]); setter(""); } };
   const removeFromArray = (field, index) => updateField(field, form[field].filter((_, i) => i !== index));
+
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
+  const handleThumbnailUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingThumbnail(true);
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `${user.id}/${fileName}`;
+    
+    const { error } = await supabase.storage.from("thumbnails").upload(filePath, file);
+    if (!error) {
+      const { data: urlData } = supabase.storage.from("thumbnails").getPublicUrl(filePath);
+      if (urlData) updateField("thumbnail_url", urlData.publicUrl);
+    } else {
+      console.error("Thumbnail upload failed:", error);
+    }
+    setUploadingThumbnail(false);
+  };
 
   const handleSave = async () => {
     if (!form.title || !form.category) return;
@@ -72,6 +91,17 @@ export default function CreateCourse() {
             <div><Label className="text-sm text-gray-600 mb-1.5 block">Category *</Label><Select value={form.category} onValueChange={(v) => updateField("category", v)}><SelectTrigger className="rounded-xl border-gray-200"><SelectValue placeholder="Select a category" /></SelectTrigger><SelectContent>{categories.map((c) => (<SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>))}</SelectContent></Select></div>
             <div><Label className="text-sm text-gray-600 mb-1.5 block">Short Description</Label><Textarea placeholder="Brief course overview (max 100 words)" value={form.short_description} onChange={(e) => updateField("short_description", e.target.value)} className="rounded-xl border-gray-200 h-20 resize-none" /></div>
             <div><Label className="text-sm text-gray-600 mb-1.5 block">Detailed Description</Label><Textarea placeholder="Full course description" value={form.long_description} onChange={(e) => updateField("long_description", e.target.value)} className="rounded-xl border-gray-200 h-32 resize-none" /></div>
+            <div>
+              <Label className="text-sm text-gray-600 mb-1.5 block">Course Thumbnail (Optional)</Label>
+              <div className="flex items-center gap-4">
+                {form.thumbnail_url && <img src={form.thumbnail_url} alt="Thumbnail preview" className="w-24 h-16 object-cover rounded-lg border border-gray-200" />}
+                <label className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700">
+                  {uploadingThumbnail ? <div className="w-4 h-4 border-2 border-[#00a98d] border-t-transparent rounded-full animate-spin" /> : <Upload className="w-4 h-4 text-gray-500" />}
+                  {uploadingThumbnail ? "Uploading..." : form.thumbnail_url ? "Change Thumbnail" : "Upload Thumbnail"}
+                  <input type="file" className="hidden" accept="image/*" onChange={handleThumbnailUpload} disabled={uploadingThumbnail} />
+                </label>
+              </div>
+            </div>
           </div>
         </section>
         <section className="bg-white rounded-2xl border border-gray-100 p-6">
