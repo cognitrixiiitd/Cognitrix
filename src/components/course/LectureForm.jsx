@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useToast } from "@/components/ui/use-toast";
 import ManualQuizBuilder from "./ManualQuizBuilder";
 import VideoSegmentBuilder from "./VideoSegmentBuilder";
 import { Upload, Link as LinkIcon, Save, X, FileText, Video } from "lucide-react";
@@ -22,28 +23,47 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
   const [videoSegments, setVideoSegments] = useState([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (existingLecture) {
+      // Sync form state when existingLecture prop changes (handles late-arriving data)
+      setForm({
+        title: existingLecture.title || "", type: existingLecture.type || "youtube", source_url: existingLecture.source_url || "",
+        transcript_text: existingLecture.transcript_text || "", attachments: existingLecture.attachments || [],
+        section_name: existingLecture.section_name || "", duration_minutes: existingLecture.duration_minutes || 0,
+      });
+      // Load existing video segments from topic_timestamps
+      if (existingLecture.topic_timestamps && Array.isArray(existingLecture.topic_timestamps) && existingLecture.topic_timestamps.length > 0) {
+        setVideoSegments(existingLecture.topic_timestamps.map(ts => ({
+          title: ts.label || ts.topic || "",
+          start_time: ts.start || ts.start_time || "",
+          end_time: ts.end || ts.end_time || "",
+        })));
+      }
       const loadQuiz = async () => {
         const { data } = await supabase.from("quizzes").select("*, quiz_questions(*)").eq("lecture_id", existingLecture.id).order('created_at', { ascending: false });
         if (data && data.length > 0 && data[0].quiz_questions) {
-          // Sort questions by order_index just to be safe
           const sorted = [...data[0].quiz_questions].sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
           setQuizQuestions(sorted);
         }
       };
       loadQuiz();
     }
-  }, [existingLecture]);
+  }, [existingLecture?.id]);
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    const filePath = `${courseId}/${Date.now()}_${file.name}`;
-    const { data, error } = await supabase.storage.from("lectures").upload(filePath, file);
+    const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filePath = `${courseId}/${Date.now()}_${cleanName}`;
+    const { data, error } = await supabase.storage.from("lectures").upload(filePath, file, {
+      contentType: file.type,
+      upsert: false
+    });
     if (error) {
-      console.error("Upload error:", error);
+      console.error("Upload error:", JSON.stringify(error));
+      toast({ title: "Upload Failed", description: "Failed to upload file. Please try again.", variant: "destructive" });
       setUploading(false);
       return;
     }
@@ -55,9 +75,17 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
   const handleAttachmentUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const fileName = `${Date.now()}_${file.name}`;
-    const { data, error } = await supabase.storage.from("lectures").upload(`attachments/${courseId}/${fileName}`, file);
-    if (error) { console.error("Attachment upload error:", error); return; }
+    const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const fileName = `${Date.now()}_${cleanName}`;
+    const { data, error } = await supabase.storage.from("lectures").upload(`attachments/${courseId}/${fileName}`, file, {
+      contentType: file.type,
+      upsert: false
+    });
+    if (error) {
+      console.error("Attachment upload error:", JSON.stringify(error));
+      toast({ title: "Upload Failed", description: "Failed to upload attachment.", variant: "destructive" });
+      return;
+    }
     const { data: urlData } = supabase.storage.from("lectures").getPublicUrl(`attachments/${courseId}/${fileName}`);
     setForm(prev => ({ ...prev, attachments: [...prev.attachments, { name: file.name, url: urlData.publicUrl }] }));
   };
@@ -110,7 +138,18 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
     setSaving(true);
 
     if (existingLecture) {
-      await supabase.from("lectures").update(form).eq("id", existingLecture.id);
+      const updatePayload = { ...existingLecture, ...form };
+      // Save video segments to topic_timestamps if any are defined
+      if (videoSegments.length > 0) {
+        updatePayload.topic_timestamps = videoSegments.map(seg => ({
+          label: seg.title,
+          start_seconds: timeToSeconds(seg.start_time),
+          topic: seg.title,
+          start: seg.start_time,
+          end: seg.end_time,
+        }));
+      }
+      await supabase.from("lectures").update(updatePayload).eq("id", existingLecture.id);
       if (quizQuestions.length > 0) {
         await saveQuizAndQuestions(courseId, existingLecture.id, form.title, quizQuestions);
       } else {
@@ -151,7 +190,7 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
 
   return (
     <div className="space-y-6">
-      <h3 className="text-sm font-semibold text-black">Add New Lecture</h3>
+      <h3 className="text-sm font-semibold text-black">{existingLecture ? "Edit Lecture" : "Add New Lecture"}</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div><Label className="text-xs text-gray-500 mb-1 block">Title *</Label><Input placeholder="Lecture title" value={form.title} onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))} className="rounded-xl border-gray-200 text-sm" /></div>
         <div><Label className="text-xs text-gray-500 mb-1 block">Content Type</Label>

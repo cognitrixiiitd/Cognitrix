@@ -3,52 +3,60 @@ import { supabase } from "@/lib/supabaseClient";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/use-toast";
 import { CheckCircle, Circle, Play, FileText, Video, ExternalLink, Send } from "lucide-react";
 
 const typeIcons = { video: Video, youtube: Play, pdf: FileText, slides: FileText, notes: FileText, external_link: ExternalLink };
 
 export default function PlayerSidebar({ lectures, currentIndex, onSelect, completedLectures, showQA, courseId, lectureId, user, profile }) {
   const [questionText, setQuestionText] = useState("");
+  const [isSending, setIsSending] = useState(false);
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: questions = [] } = useQuery({
     queryKey: ["lecture-questions", lectureId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("questions").select("id, text, user_name, answers, created_at").eq("lecture_id", lectureId).eq("is_stuck_flag", false).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("questions").select("id, text, user_name, question_answers(id, text, user_name, created_at), created_at").eq("lecture_id", lectureId).eq("is_stuck_flag", false).order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      return (data || []).map(q => ({ ...q, answers: q.question_answers || [] }));
     },
     enabled: !!lectureId && showQA,
   });
 
-  const handleAsk = () => {
-    if (!questionText.trim() || !user) return;
+  const handleAsk = async () => {
+    if (!questionText.trim() || !user || isSending) return;
 
-    const optimisticQuestion = {
-      id: `temp-${Date.now()}`,
-      text: questionText,
-      user_name: profile?.full_name || user.email,
-      answers: [],
-      created_at: new Date().toISOString(),
+    setIsSending(true);
+    const savedText = questionText.trim();
+
+    const payload = {
+      user_id: user.id, 
+      user_name: profile?.full_name || user.email || "Student", 
+      course_id: courseId,
+      lecture_id: lectureId || null, 
+      text: savedText, 
+      status: "open", 
+      is_stuck_flag: false, 
+      is_private: false,
     };
+    console.log("Q&A payload:", payload);
 
-    // Optimistic: add to local list immediately
-    queryClient.setQueryData(["lecture-questions", lectureId], (old) => [optimisticQuestion, ...(old || [])]);
-    const savedText = questionText;
-    setQuestionText("");
-
-    // Fire in background
-    supabase.from("questions").insert({
-      user_id: user.id, user_name: profile?.full_name || user.email, course_id: courseId,
-      lecture_id: lectureId, text: savedText, status: "open", is_stuck_flag: false, answers: [],
-    }).then(({ error }) => {
-      if (error) {
-        // Revert on failure
-        queryClient.setQueryData(["lecture-questions", lectureId], (old) => (old || []).filter(q => q.id !== optimisticQuestion.id));
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["lecture-questions", lectureId] });
-      }
-    });
+    const { error } = await supabase.from("questions").insert(payload);
+    
+    if (error) {
+      console.error("Q&A Insert Error:", error);
+      toast({
+        title: "Failed to post question",
+        description: error.message || "An error occurred. Please try again.",
+        variant: "destructive",
+      });
+      setIsSending(false);
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["lecture-questions", lectureId] });
+      setQuestionText("");
+      setIsSending(false);
+    }
   };
 
   return (
@@ -68,8 +76,8 @@ export default function PlayerSidebar({ lectures, currentIndex, onSelect, comple
             )}
           </div>
           <div className="flex gap-2">
-            <Textarea placeholder="Ask a question..." value={questionText} onChange={(e) => setQuestionText(e.target.value)} className="rounded-xl border-gray-200 text-sm h-16 resize-none" />
-            <Button size="icon" onClick={handleAsk} disabled={!questionText.trim()} className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl flex-shrink-0"><Send className="w-4 h-4" /></Button>
+            <Textarea placeholder="Ask a question..." value={questionText} onChange={(e) => setQuestionText(e.target.value)} disabled={isSending} className="rounded-xl border-gray-200 text-sm h-16 resize-none" />
+            <Button size="icon" onClick={handleAsk} disabled={!questionText.trim() || isSending} className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl flex-shrink-0"><Send className="w-4 h-4" /></Button>
           </div>
         </div>
       ) : (

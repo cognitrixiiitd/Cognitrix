@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Users, TrendingUp, Flag, Download, Trophy } from "lucide-react";
+import { Users, TrendingUp, Download, Trophy } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const COLORS = ["#00a98d", "#6366f1", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
@@ -29,15 +29,10 @@ export default function Analytics() {
   const courseIds = courses.map(c => c.id);
   const { data: enrollments = [], isLoading: loadingEnrollments } = useQuery({
     queryKey: ["analytics-enrollments", courseIds.join(",")],
-    queryFn: async () => { if (!courseIds.length) return []; const { data } = await supabase.from("enrollments").select("id, course_id, student_id, student_name, student_email, progress_percent, status, time_spent_minutes, quiz_scores").in("course_id", courseIds); return data || []; },
+    queryFn: async () => { if (!courseIds.length) return []; const { data } = await supabase.from("enrollments").select("id, course_id, student_id, student_name, student_email, progress_percent, status, time_spent_minutes").in("course_id", courseIds); return data || []; },
     enabled: courseIds.length > 0,
   });
 
-  const { data: stuckFlags = [] } = useQuery({
-    queryKey: ["analytics-stuck", courseIds.join(",")],
-    queryFn: async () => { if (!courseIds.length) return []; const { data } = await supabase.from("questions").select("id, course_id").in("course_id", courseIds).eq("is_stuck_flag", true); return data || []; },
-    enabled: courseIds.length > 0,
-  });
 
   const { data: lectures = [] } = useQuery({
     queryKey: ["analytics-lectures", courseIds.join(",")],
@@ -47,7 +42,7 @@ export default function Analytics() {
 
   const { data: questions = [] } = useQuery({
     queryKey: ["analytics-questions", courseIds.join(",")],
-    queryFn: async () => { if (!courseIds.length) return []; const { data } = await supabase.from("questions").select("id, course_id, text, user_name, created_at").in("course_id", courseIds).eq("is_stuck_flag", false); return data || []; },
+    queryFn: async () => { if (!courseIds.length) return []; const { data } = await supabase.from("questions").select("id, course_id, text, user_name, created_at").in("course_id", courseIds); return data || []; },
     enabled: courseIds.length > 0,
   });
 
@@ -72,11 +67,10 @@ export default function Analytics() {
   ].filter(d => d.value > 0);
 
   const exportCSV = () => {
-    const headers = ["Student Name", "Student Email", "Course", "Progress %", "Status", "Time Spent (min)", "Quiz Scores"];
+    const headers = ["Student Name", "Student Email", "Course", "Progress %", "Status", "Time Spent (min)"];
     const rows = filteredEnrollments.map(e => {
       const course = courses.find(c => c.id === e.course_id);
-      const avgScore = e.quiz_scores?.length > 0 ? Math.round(e.quiz_scores.reduce((s, q) => s + ((q.score / q.max_score) * 100), 0) / e.quiz_scores.length) + "%" : "N/A";
-      return [e.student_name, e.student_email, course?.title || "", e.progress_percent || 0, e.status, e.time_spent_minutes || 0, avgScore];
+      return [e.student_name, e.student_email, course?.title || "", e.progress_percent || 0, e.status, e.time_spent_minutes || 0];
     });
     const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -101,7 +95,6 @@ export default function Analytics() {
         <StatCard title="Total Students" value={totalStudents} icon={Users} />
         <StatCard title="Avg. Completion" value={`${avgCompletion}%`} icon={TrendingUp} color="#6366f1" />
         <StatCard title="Completed" value={completedCount} icon={Trophy} color="#f59e0b" />
-        <StatCard title="Stuck Flags" value={stuckFlags.length} icon={Flag} color="#ef4444" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -120,7 +113,7 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <EngagementInsights lectures={lectures.filter(l => selectedCourse === "all" || l.course_id === selectedCourse)} stuckFlags={stuckFlags.filter(f => selectedCourse === "all" || f.course_id === selectedCourse)} enrollments={filteredEnrollments} />
+        <EngagementInsights lectures={lectures.filter(l => selectedCourse === "all" || l.course_id === selectedCourse)} enrollments={filteredEnrollments} />
         <QuizAnalysis enrollments={filteredEnrollments} />
         <SentimentAnalysis questions={questions.filter(q => selectedCourse === "all" || q.course_id === selectedCourse)} />
       </div>
@@ -133,14 +126,13 @@ export default function Analytics() {
             <tbody>
               {filteredEnrollments.slice(0, 20).map(e => {
                 const course = courses.find(c => c.id === e.course_id);
-                const avgScore = e.quiz_scores?.length > 0 ? Math.round(e.quiz_scores.reduce((s, q) => s + ((q.score / q.max_score) * 100), 0) / e.quiz_scores.length) : null;
                 return (
                   <tr key={e.id} className="border-b border-gray-50 hover:bg-gray-50">
                     <td className="px-6 py-3"><p className="text-sm font-medium text-black">{e.student_name || "Student"}</p><p className="text-xs text-gray-400">{e.student_email}</p></td>
                     <td className="px-6 py-3 text-sm text-gray-600">{course?.title}</td>
                     <td className="px-6 py-3"><div className="flex items-center gap-2"><div className="w-16"><Progress value={e.progress_percent || 0} className="h-1.5" /></div><span className="text-xs text-gray-500">{e.progress_percent || 0}%</span></div></td>
                     <td className="px-6 py-3"><Badge className={`text-[10px] ${e.status === "completed" ? "bg-emerald-50 text-emerald-700" : e.status === "active" ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-600"}`}>{e.status}</Badge></td>
-                    <td className="px-6 py-3 text-sm text-gray-600">{avgScore !== null ? `${avgScore}%` : "—"}</td>
+                    <td className="px-6 py-3 text-sm text-gray-600">—</td>
                   </tr>
                 );
               })}

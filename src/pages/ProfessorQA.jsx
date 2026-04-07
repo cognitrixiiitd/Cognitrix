@@ -31,13 +31,14 @@ export default function ProfessorQA() {
     queryKey: ["qa-questions", courseIds.join(","), filter],
     queryFn: async () => {
       if (courseIds.length === 0) return [];
-      let query = supabase.from("questions").select("id, text, user_name, course_id, status, is_stuck_flag, answers, created_at").in("course_id", courseIds);
+      let query = supabase.from("questions").select("id, text, user_name, course_id, status, is_stuck_flag, question_answers(id, text, user_name, created_at), created_at").in("course_id", courseIds);
       if (filter !== "all") query = query.eq("status", filter);
       query = query.order("created_at", { ascending: false });
       const { data, error } = await query;
       if (error) throw error;
       return (data || []).map((q) => ({
         ...q,
+        answers: q.question_answers || [],
         course_title: courses.find((c) => c.id === q.course_id)?.title,
       }));
     },
@@ -45,13 +46,17 @@ export default function ProfessorQA() {
   });
 
   const replyMutation = useMutation({
-    mutationFn: async ({ questionId, text, existingAnswers }) => {
-      const answers = [
-        ...(existingAnswers || []),
-        { user_id: user.id, user_name: profile?.full_name, text, created_at: new Date().toISOString() },
-      ];
-      const { error } = await supabase.from("questions").update({ answers, status: "answered" }).eq("id", questionId);
-      if (error) throw error;
+    mutationFn: async ({ questionId, text }) => {
+      const { error: insertError } = await supabase.from("question_answers").insert({
+        question_id: questionId,
+        user_id: user.id,
+        user_name: profile?.full_name || user.email || "Professor",
+        text,
+      });
+      if (insertError) throw insertError;
+      
+      const { error: updateError } = await supabase.from("questions").update({ status: "answered" }).eq("id", questionId);
+      if (updateError) throw updateError;
     },
     onSuccess: () => { setReplyText({}); queryClient.invalidateQueries({ queryKey: ["qa-questions"] }); },
   });
@@ -117,7 +122,7 @@ export default function ProfessorQA() {
                   ))}
                   <div className="flex gap-2 mt-3">
                     <Textarea placeholder="Write a reply..." value={replyText[q.id] || ""} onChange={(e) => setReplyText((prev) => ({ ...prev, [q.id]: e.target.value }))} className="rounded-xl border-gray-200 text-sm h-12 resize-none" />
-                    <Button size="icon" onClick={() => replyText[q.id]?.trim() && replyMutation.mutate({ questionId: q.id, text: replyText[q.id], existingAnswers: q.answers })} disabled={!replyText[q.id]?.trim() || replyMutation.isPending} className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl flex-shrink-0"><Send className="w-4 h-4" /></Button>
+                    <Button size="icon" onClick={() => replyText[q.id]?.trim() && replyMutation.mutate({ questionId: q.id, text: replyText[q.id] })} disabled={!replyText[q.id]?.trim() || replyMutation.isPending} className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl flex-shrink-0"><Send className="w-4 h-4" /></Button>
                     {q.is_stuck_flag && (
                       <Button variant="outline" size="sm" onClick={() => resolveMutation.mutate(q.id)} disabled={resolveMutation.isPending} className="text-xs gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl flex-shrink-0">
                         <CheckCircle className="w-3.5 h-3.5" />Resolve

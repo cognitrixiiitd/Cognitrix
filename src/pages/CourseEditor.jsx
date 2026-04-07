@@ -7,7 +7,6 @@ import { Link } from "react-router-dom";
 import PageSkeleton from "../components/shared/PageSkeleton";
 import LectureForm from "@/components/course/LectureForm";
 
-import CourseHistory from "@/components/course/CourseHistory";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Plus, Trash2, GripVertical, Eye, Archive, Send, MoreVertical } from "lucide-react";
@@ -23,8 +22,6 @@ export default function CourseEditor() {
   const [editingLecture, setEditingLecture] = useState(null);
   const [lectureFormTab, setLectureFormTab] = useState("transcript");
 
-  const [showHistory, setShowHistory] = useState(false);
-
   const { data: course, isLoading } = useQuery({
     queryKey: ["editor-course", courseId],
     queryFn: async () => {
@@ -38,7 +35,7 @@ export default function CourseEditor() {
   const { data: lectures = [] } = useQuery({
     queryKey: ["editor-lectures", courseId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("lectures").select("id, title, type, order_index, duration_minutes, section_name").eq("course_id", courseId).order("order_index");
+      const { data, error } = await supabase.from("lectures").select("id, title, type, order_index, duration_minutes, section_name, source_url, attachments, topic_timestamps, transcript_text").eq("course_id", courseId).order("order_index");
       if (error) throw error;
       return data || [];
     },
@@ -110,7 +107,6 @@ export default function CourseEditor() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowHistory(true)} className="rounded-xl text-xs">History</Button>
           <Link to={createPageUrl(`CoursePlayer?id=${courseId}`)}><Button variant="outline" size="sm" className="rounded-xl text-xs gap-1"><Eye className="w-3.5 h-3.5" />Preview as Student</Button></Link>
           {statusAction && (<Button size="sm" onClick={statusAction.action} disabled={statusMutation.isPending} className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl text-xs gap-1"><statusAction.icon className="w-3.5 h-3.5" />{statusAction.label}</Button>)}
         </div>
@@ -161,7 +157,6 @@ export default function CourseEditor() {
       </div>
 
       {showLectureForm && (<LectureForm courseId={courseId} existingLecture={editingLecture} course={course} orderIndex={lectures.length} defaultTab={lectureFormTab} onCancel={() => { setShowLectureForm(false); setEditingLecture(null); }} onSaved={() => { queryClient.invalidateQueries(["editor-lectures", courseId]); setShowLectureForm(false); setEditingLecture(null); }} />)}
-      {showHistory && (<CourseHistory courseId={courseId} onClose={() => setShowHistory(false)} />)}
     </div>
   );
 }

@@ -15,12 +15,12 @@ export default function StudentQA() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("questions")
-        .select("id, text, status, answers, created_at")
+        .select("id, text, status, question_answers(id, text, user_name, created_at), created_at")
         .eq("user_id", user.id)
         .eq("is_stuck_flag", false)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      return (data || []).map(q => ({ ...q, answers: q.question_answers || [] }));
     },
     enabled: !!user?.id,
   });

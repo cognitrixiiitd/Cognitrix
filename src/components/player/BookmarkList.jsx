@@ -20,7 +20,7 @@ export default function BookmarkList({ bookmarks, onDelete }) {
               <Bookmark className="w-5 h-5 text-[#00a98d]" />
             </div>
             <div className="flex-1 min-w-0">
-              <Link to={createPageUrl(`CoursePlayer?id=${bookmark.course_id}&time=${bookmark.timestamp_seconds}`)}>
+              <Link to={createPageUrl(`CoursePlayer?id=${bookmark.course_id}&lecture=${bookmark.lecture_id}&t=${bookmark.timestamp_seconds}`)}>
                 <h3 className="text-sm font-semibold text-black hover:text-[#00a98d] transition-colors truncate">
                   {bookmark.note || "Bookmarked Moment"}
                 </h3>
@@ -31,7 +31,7 @@ export default function BookmarkList({ bookmarks, onDelete }) {
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <Link to={createPageUrl(`CoursePlayer?id=${bookmark.course_id}&time=${bookmark.timestamp_seconds}`)}>
+              <Link to={createPageUrl(`CoursePlayer?id=${bookmark.course_id}&lecture=${bookmark.lecture_id}&t=${bookmark.timestamp_seconds}`)}>
                 <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg text-[#00a98d] hover:bg-[#00a98d]/10">
                   <Play className="w-3.5 h-3.5" />
                 </Button>

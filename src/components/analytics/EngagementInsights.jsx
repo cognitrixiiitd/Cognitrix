@@ -13,36 +13,30 @@ import {
 
 export default function EngagementInsights({
   lectures,
-  stuckFlags,
   enrollments,
 }) {
-  // Calculate time spent per lecture (from stuck flags and questions as proxy)
+  // Calculate engagement per lecture based on completion rates
   const lectureEngagement = lectures
     .map((lecture) => {
-      const flags = stuckFlags.filter(
-        (f) => f.lecture_id === lecture.id,
-      ).length;
       const completed = enrollments.filter((e) =>
         e.completed_lectures?.includes(lecture.id),
       ).length;
+      const total = enrollments.length;
+      const engagementScore = total > 0 ? Math.round((completed / total) * 100) : 0;
       return {
         id: lecture.id,
         title:
           lecture.title.length > 15
             ? lecture.title.slice(0, 15) + "..."
             : lecture.title,
-        flags,
         completed,
-        engagementScore:
-          completed > 0
-            ? Math.round((1 - flags / Math.max(completed, 1)) * 100)
-            : 0,
+        engagementScore,
       };
     })
     .sort((a, b) => a.engagementScore - b.engagementScore);
 
   const challengingLectures = lectureEngagement
-    .filter((l) => l.flags > 0 || l.engagementScore < 70)
+    .filter((l) => l.engagementScore < 70)
     .slice(0, 5);
 
   return (
@@ -63,10 +57,10 @@ export default function EngagementInsights({
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip />
               <Bar
-                dataKey="flags"
-                fill="#ef4444"
+                dataKey="engagementScore"
+                fill="#f59e0b"
                 radius={[4, 4, 0, 0]}
-                name="Stuck Flags"
+                name="Engagement %"
               />
             </BarChart>
           </ResponsiveContainer>
@@ -81,7 +75,7 @@ export default function EngagementInsights({
                     {lecture.title}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {lecture.flags} stuck flags
+                    {lecture.completed} completions
                   </p>
                 </div>
                 <Badge

@@ -19,7 +19,7 @@ const LayoutWrapper = ({ children, currentPageName }) =>
   );
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isAuthenticated, authTimedOut, retryAuth } = useAuth();
+  const { isLoadingAuth, isAuthenticated, authTimedOut, retryAuth, profile } = useAuth();
 
   if (isLoadingAuth) {
     return (
@@ -59,13 +59,16 @@ const AuthenticatedApp = () => {
     );
   }
 
+  const roleHome = profile?.role === "student" ? "StudentDashboard" : "ProfessorDashboard";
+  const RoleHomePage = Pages[roleHome] || Pages[mainPageKey];
+
   return (
     <Routes>
       <Route
         path="/"
         element={
-          <LayoutWrapper currentPageName={mainPageKey}>
-            <MainPage />
+          <LayoutWrapper currentPageName={roleHome}>
+            <RoleHomePage />
           </LayoutWrapper>
         }
       />

@@ -13,7 +13,27 @@ export default function ManualQuizBuilder({ questions, onChange, transcript, lec
     onChange([...questions, { question_type: "multiple_choice", question_text: "", choices: ["", "", "", ""], correct_index: 0, correct_answer: "", source_timestamp: "" }]);
   };
 
-  const updateQuestion = (index, field, value) => { const updated = [...questions]; updated[index] = { ...updated[index], [field]: value }; onChange(updated); };
+  const updateQuestion = (index, field, value) => {
+    const updated = [...questions];
+    updated[index] = { ...updated[index], [field]: value };
+    // When question type changes, reset type-specific fields
+    if (field === "question_type") {
+      if (value === "multiple_choice") {
+        updated[index].choices = ["", "", "", ""];
+        updated[index].correct_index = 0;
+        updated[index].correct_answer = "";
+      } else if (value === "fill_in_blank") {
+        updated[index].choices = [];
+        updated[index].correct_index = null;
+        updated[index].correct_answer = "";
+      } else if (value === "short_answer") {
+        updated[index].choices = [];
+        updated[index].correct_index = null;
+        updated[index].correct_answer = null;
+      }
+    }
+    onChange(updated);
+  };
   const updateChoice = (qIndex, cIndex, value) => { const updated = [...questions]; updated[qIndex].choices[cIndex] = value; onChange(updated); };
   const deleteQuestion = (index) => onChange(questions.filter((_, i) => i !== index));
 
@@ -46,8 +66,14 @@ export default function ManualQuizBuilder({ questions, onChange, transcript, lec
                     {q.choices?.map((choice, cIdx) => (<div key={cIdx} className="flex gap-2 items-center"><input type="radio" checked={q.correct_index === cIdx} onChange={() => updateQuestion(qIdx, "correct_index", cIdx)} className="w-4 h-4 text-[#00a98d]" /><Input placeholder={`Choice ${cIdx + 1}`} value={choice} onChange={(e) => updateChoice(qIdx, cIdx, e.target.value)} className="text-xs rounded-lg" /></div>))}
                   </div>
                 )}
-                {(q.question_type === "fill_in_blank" || q.question_type === "short_answer") && (
-                  <Input placeholder="Correct answer" value={q.correct_answer || ""} onChange={(e) => updateQuestion(qIdx, "correct_answer", e.target.value)} className="text-sm rounded-lg" />
+                {q.question_type === "fill_in_blank" && (
+                  <div>
+                    <Label className="text-xs text-gray-500">Correct Answer</Label>
+                    <Input placeholder="Enter the correct answer" value={q.correct_answer || ""} onChange={(e) => updateQuestion(qIdx, "correct_answer", e.target.value)} className="text-sm rounded-lg" />
+                  </div>
+                )}
+                {q.question_type === "short_answer" && (
+                  <p className="text-xs text-gray-400 italic bg-gray-100 p-2 rounded-lg">Open-ended question — no correct answer required. Will be reviewed manually.</p>
                 )}
               </div>
               <button type="button" onClick={() => deleteQuestion(qIdx)} className="p-1.5 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4 text-red-500" /></button>
