@@ -13,6 +13,7 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [authTimedOut, setAuthTimedOut] = useState(false);
+  const [suspended, setSuspended] = useState(false);
   const timeoutRef = useRef(null);
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export const AuthProvider = ({ children }) => {
           // fetchProfile in try/catch so it never blocks isLoadingAuth
           try {
             // Do not await fetchProfile to prevent hanging the auth listener if the DB calls get stuck
-            fetchProfile(s.user.id, s.user.user_metadata).catch(err => {
+            fetchProfile(s.user.id, s.user.user_metadata, s.user.email).catch(err => {
               console.error("[Auth] fetchProfile failed:", err);
             });
           } catch (err) {
@@ -63,7 +64,7 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  const fetchProfile = async (userId, userMetadata = null) => {
+  const fetchProfile = async (userId, userMetadata = null, userEmail = null) => {
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
@@ -77,6 +78,28 @@ export const AuthProvider = ({ children }) => {
     }
 
     if (data) {
+      // Fix 3: Check if account is paused — sign out immediately
+      if (data.account_status === "paused") {
+        await supabase.auth.signOut();
+        setSuspended(true);
+        setUser(null);
+        setProfile(null);
+        setIsAuthenticated(false);
+        return;
+      }
+
+      // Fix 4: Backfill email for existing users who don't have it in profiles
+      if (!data.email && userEmail) {
+        supabase
+          .from("profiles")
+          .update({ email: userEmail })
+          .eq("id", userId)
+          .then(({ error: updateErr }) => {
+            if (updateErr) console.error("[Auth] Email backfill error:", updateErr);
+          });
+        data.email = userEmail;
+      }
+
       setProfile(data);
     } else if (userMetadata) {
       // Profile doesn't exist yet — first-time login, create it
@@ -87,6 +110,7 @@ export const AuthProvider = ({ children }) => {
             id: userId,
             full_name: userMetadata.full_name || "User",
             role: userMetadata.role || "student",
+            email: userEmail || null,
           })
           .select()
           .single();
@@ -103,6 +127,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signIn = async (email, password) => {
+    setSuspended(false);
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -111,14 +136,14 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  const signUp = async (email, password, fullName, role) => {
+  const signUp = async (email, password, fullName) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           full_name: fullName,
-          role: role,
+          role: "student",
         },
       },
     });
@@ -155,13 +180,14 @@ export const AuthProvider = ({ children }) => {
   const retryAuth = () => {
     setIsLoadingAuth(true);
     setAuthTimedOut(false);
+    setSuspended(false);
     // Force a fresh session check
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       if (s?.user) {
         setSession(s);
         setUser(s.user);
         setIsAuthenticated(true);
-        fetchProfile(s.user.id, s.user.user_metadata).catch(() => {});
+        fetchProfile(s.user.id, s.user.user_metadata, s.user.email).catch(() => {});
       }
       setIsLoadingAuth(false);
     }).catch(() => {
@@ -178,6 +204,7 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated,
         isLoadingAuth,
         authTimedOut,
+        suspended,
         isLoadingPublicSettings: false,
         authError: null,
         signIn,

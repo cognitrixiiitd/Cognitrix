@@ -48,10 +48,16 @@ export default function MyLearning() {
     enabled: !!user,
   });
 
-  const { data: learningPaths = [] } = useQuery({
-    queryKey: ["my-paths", user?.id],
+  // Fix 5: Fetch pending enrollment requests
+  const { data: pendingRequests = [] } = useQuery({
+    queryKey: ["my-pending-requests", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("learning_paths").select("id, title, status, progress_percent").eq("student_id", user.id);
+      const { data, error } = await supabase
+        .from("enrollment_requests")
+        .select("id, course_id, status, created_at, courses(title, professor_name)")
+        .eq("student_id", user.id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -122,6 +128,37 @@ export default function MyLearning() {
   return (
     <div>
       <h1 className="text-2xl font-semibold text-black tracking-tight mb-8">My Learning</h1>
+
+      {/* Fix 5: Pending Enrollment Requests Section */}
+      {pendingRequests.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-base font-semibold text-black mb-3 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-500" />
+            Pending Enrollment Requests ({pendingRequests.length})
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pendingRequests.map((req) => (
+              <div key={req.id} className="bg-amber-50/50 rounded-2xl border border-amber-200 p-5">
+                <Link to={createPageUrl(`CourseDetail?id=${req.course_id}`)}>
+                  <h3 className="text-sm font-semibold text-black hover:text-[#00a98d] transition-colors">
+                    {req.courses?.title || "Course"}
+                  </h3>
+                </Link>
+                <p className="text-xs text-gray-400 mt-1">{req.courses?.professor_name || ""}</p>
+                <div className="flex items-center gap-1.5 mt-3">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
+                    Pending Approval
+                  </span>
+                  <span className="text-[10px] text-gray-400">
+                    Requested {new Date(req.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <Tabs defaultValue="active" className="space-y-6">
         <TabsList className="bg-gray-100 rounded-xl">
           <TabsTrigger value="active" className="rounded-lg text-xs">In Progress ({activeCourses.length})</TabsTrigger>

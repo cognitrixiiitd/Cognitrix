@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft, Clock, Users, BookOpen, GraduationCap, Play,
-  CheckCircle, FileText, Video, ExternalLink,
+  CheckCircle, FileText, Video, ExternalLink, Loader2, AlertCircle,
 } from "lucide-react";
 
 const categoryLabels = {
@@ -74,32 +74,36 @@ export default function CourseDetail() {
     enabled: !!courseId && !!user,
   });
 
-  const enrollMutation = useMutation({
+  // Fix 5: Check for existing enrollment request
+  const { data: enrollmentRequest } = useQuery({
+    queryKey: ["enrollment-request", courseId, user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data, error } = await supabase
+        .from("enrollment_requests")
+        .select("id, status, created_at")
+        .eq("course_id", courseId)
+        .eq("student_id", user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!courseId && !!user && !enrollment,
+  });
+
+  // Fix 5: Request enrollment mutation (replaces direct enroll)
+  const requestMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("enrollments").insert({
-        student_id: user.id, student_name: profile?.full_name,
-        student_email: user.email, course_id: courseId,
-        course_title: course.title, status: "active",
-        progress_percent: 0, completed_lectures: [], time_spent_minutes: 0,
+      const { error } = await supabase.from("enrollment_requests").insert({
+        student_id: user.id,
+        course_id: courseId,
+        status: "pending",
+        message: null,
       });
       if (error) throw error;
     },
-    onMutate: async () => {
-      // Optimistic: immediately show as enrolled
-      await queryClient.cancelQueries({ queryKey: ["enrollment", courseId, user?.id] });
-      const prev = queryClient.getQueryData(["enrollment", courseId, user?.id]);
-      queryClient.setQueryData(["enrollment", courseId, user?.id], {
-        id: "optimistic", student_id: user.id, course_id: courseId,
-        completed_lectures: [], status: "active",
-      });
-      return { prev };
-    },
-    onError: (_err, _vars, context) => {
-      queryClient.setQueryData(["enrollment", courseId, user?.id], context.prev);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["enrollment", courseId, user?.id] });
-      supabase.from("courses").update({ enrollment_count: (course.enrollment_count || 0) + 1 }).eq("id", courseId).then(() => {});
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["enrollment-request", courseId, user?.id] });
     },
   });
 
@@ -108,6 +112,59 @@ export default function CourseDetail() {
 
   const isEnrolled = !!enrollment;
   const isProfessor = profile?.role === "professor" || profile?.role === "admin";
+
+  // Fix 5: Determine enrollment action button
+  const renderEnrollmentAction = () => {
+    if (isEnrolled) {
+      return (
+        <Link to={createPageUrl(`CoursePlayer?id=${courseId}`)}>
+          <Button className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl px-8 gap-2"><Play className="w-4 h-4" />Continue Learning</Button>
+        </Link>
+      );
+    }
+    if (isProfessor) {
+      return (
+        <Link to={createPageUrl(`CourseEditor?id=${courseId}`)}>
+          <Button variant="outline" className="rounded-xl px-8">Edit Course</Button>
+        </Link>
+      );
+    }
+    if (enrollmentRequest?.status === "pending") {
+      return (
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">
+          <Clock className="w-4 h-4 text-amber-600" />
+          <span className="text-sm text-amber-700 font-medium">Enrollment request pending professor approval</span>
+        </div>
+      );
+    }
+    if (enrollmentRequest?.status === "rejected") {
+      return (
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl">
+          <AlertCircle className="w-4 h-4 text-red-500" />
+          <span className="text-sm text-red-600 font-medium">Your enrollment request was not approved. Contact your professor.</span>
+        </div>
+      );
+    }
+    if (enrollmentRequest?.status === "approved") {
+      // Edge case: request approved but enrollment not yet created
+      return (
+        <Link to={createPageUrl(`CoursePlayer?id=${courseId}`)}>
+          <Button className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl px-8 gap-2"><Play className="w-4 h-4" />Continue Learning</Button>
+        </Link>
+      );
+    }
+    // No request exists — show request button
+    return (
+      <Button
+        onClick={() => requestMutation.mutate()}
+        disabled={requestMutation.isPending}
+        className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl px-8 gap-2"
+      >
+        {requestMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+        {requestMutation.isPending ? "Requesting..." : "Request to Enroll"}
+      </Button>
+    );
+  };
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -140,19 +197,7 @@ export default function CourseDetail() {
             <span className="flex items-center gap-1.5"><Users className="w-4 h-4 text-gray-400" />{course.enrollment_count || 0} students</span>
           </div>
           <div className="mt-6">
-            {isEnrolled ? (
-              <Link to={createPageUrl(`CoursePlayer?id=${courseId}`)}>
-                <Button className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl px-8 gap-2"><Play className="w-4 h-4" />Continue Learning</Button>
-              </Link>
-            ) : isProfessor ? (
-              <Link to={createPageUrl(`CourseEditor?id=${courseId}`)}>
-                <Button variant="outline" className="rounded-xl px-8">Edit Course</Button>
-              </Link>
-            ) : (
-              <Button onClick={() => enrollMutation.mutate()} disabled={enrollMutation.isPending} className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl px-8">
-                {enrollMutation.isPending ? "Enrolling..." : "Enroll Now"}
-              </Button>
-            )}
+            {renderEnrollmentAction()}
           </div>
         </div>
       </div>

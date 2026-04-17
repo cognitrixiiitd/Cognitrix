@@ -37,15 +37,7 @@ export default function StudentDashboard() {
     enabled: courseIds.length > 0,
   });
 
-  const { data: learningPaths = [] } = useQuery({
-    queryKey: ["student-paths", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("learning_paths").select("id, title, status").eq("student_id", user.id).eq("status", "active");
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!user,
-  });
+
 
   if (isLoading) return <PageSkeleton variant="dashboard" />;
 

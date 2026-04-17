@@ -9,11 +9,11 @@ import {
   PlusCircle,
   BarChart3,
   MessageSquare,
-  Route,
   Menu,
   X,
   LogOut,
   ChevronDown,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,7 +37,6 @@ const studentNav = [
   { label: "Browse Courses", icon: BookOpen, page: "CourseCatalog" },
   { label: "My Learning", icon: GraduationCap, page: "MyLearning" },
   { label: "Achievements", icon: BarChart3, page: "StudentAchievements" },
-  { label: "Learning Paths", icon: Route, page: "LearningPaths" },
   { label: "Q&A", icon: MessageSquare, page: "StudentQA" },
 ];
 
@@ -61,8 +60,12 @@ export default function Layout({ children, currentPageName }) {
     "CourseEditor",
   ]);
   const isProfessor = userRole === "professor" || userRole === "admin";
+  const isAdmin = userRole === "admin";
   const isOnProfessorPage = professorPages.has(currentPageName);
-  const navItems = isProfessor && isOnProfessorPage ? professorNav : studentNav;
+
+  const adminNavItem = { label: "Admin Dashboard", icon: Shield, page: "AdminDashboard" };
+  const baseNav = isProfessor && isOnProfessorPage ? professorNav : studentNav;
+  const navItems = isAdmin ? [adminNavItem, ...baseNav] : baseNav;
 
   return (
     <div className="min-h-screen bg-[#fafafa]">

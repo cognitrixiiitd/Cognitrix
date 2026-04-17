@@ -78,7 +78,7 @@ export default function StudentAchievements() {
         <TabsContent value="leaderboard">
           <div className="bg-white rounded-2xl border border-gray-100 p-6">
             <h2 className="text-base font-semibold text-black mb-4">🏆 Top Learners</h2>
-            <Leaderboard limit={20} />
+            <Leaderboard limit={50} currentUserId={user?.id} />
           </div>
         </TabsContent>
       </Tabs>

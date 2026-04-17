@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { GraduationCap } from "lucide-react";
@@ -9,7 +10,6 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState("student");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -22,7 +22,7 @@ export default function Login() {
 
     try {
       if (isSignUp) {
-        await signUp(email, password, fullName, role);
+        await signUp(email, password, fullName);
         setMessage("Account created! Check your email to confirm, then sign in.");
         setIsSignUp(false);
       } else {
@@ -51,34 +51,19 @@ export default function Login() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
           <form onSubmit={handleSubmit} className="space-y-4">
             {isSignUp && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00a98d]/20 focus:border-[#00a98d]"
-                    placeholder="John Doe"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    I am a
-                  </label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00a98d]/20 focus:border-[#00a98d]"
-                  >
-                    <option value="student">Student</option>
-                    <option value="professor">Professor</option>
-                  </select>
-                </div>
-              </>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00a98d]/20 focus:border-[#00a98d]"
+                  placeholder="John Doe"
+                />
+              </div>
             )}
 
             <div>
@@ -130,19 +115,27 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-2">
             <button
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setError("");
                 setMessage("");
               }}
-              className="text-sm text-[#00a98d] hover:underline"
+              className="text-sm text-[#00a98d] hover:underline block mx-auto"
             >
               {isSignUp
                 ? "Already have an account? Sign in"
                 : "Don't have an account? Sign up"}
             </button>
+            {!isSignUp && (
+              <Link
+                to="/ProfessorSignUp"
+                className="text-sm text-gray-500 hover:text-[#00a98d] hover:underline block transition-colors"
+              >
+                Apply as Professor →
+              </Link>
+            )}
           </div>
         </div>
       </div>

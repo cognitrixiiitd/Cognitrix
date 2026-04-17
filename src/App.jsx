@@ -6,6 +6,7 @@ import { BrowserRouter as Router, Route, Routes, Navigate } from "react-router-d
 import PageNotFound from "./lib/PageNotFound";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import Login from "@/pages/Login";
+import ProfessorSignUp from "@/pages/ProfessorSignUp";
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -19,13 +20,34 @@ const LayoutWrapper = ({ children, currentPageName }) =>
   );
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isAuthenticated, authTimedOut, retryAuth, profile } = useAuth();
+  const { isLoadingAuth, isAuthenticated, authTimedOut, suspended, retryAuth, profile } = useAuth();
 
   if (isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#fafafa]">
         <div className="w-8 h-8 border-4 border-[#00a98d]/20 border-t-[#00a98d] rounded-full animate-spin"></div>
         <p className="text-sm text-gray-500 mt-4">Loading session...</p>
+      </div>
+    );
+  }
+
+  if (suspended) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#fafafa] p-4 text-center">
+        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+          <span className="text-red-500 text-2xl">🚫</span>
+        </div>
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Account Suspended</h2>
+        <p className="text-sm text-gray-500 max-w-md mb-6">
+          Your account has been suspended by an administrator.<br />
+          Please contact <a href="mailto:cognitrix.iiitd@gmail.com" className="text-[#00a98d] underline">cognitrix.iiitd@gmail.com</a> for assistance.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2.5 rounded-xl text-sm font-medium transition-colors"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
@@ -54,12 +76,17 @@ const AuthenticatedApp = () => {
     return (
       <Routes>
         <Route path="/Login" element={<Login />} />
+        <Route path="/ProfessorSignUp" element={<ProfessorSignUp />} />
         <Route path="*" element={<Navigate to="/Login" replace />} />
       </Routes>
     );
   }
 
-  const roleHome = profile?.role === "student" ? "StudentDashboard" : "ProfessorDashboard";
+  const roleHome = profile?.role === "admin"
+    ? "AdminDashboard"
+    : profile?.role === "student"
+      ? "StudentDashboard"
+      : "ProfessorDashboard";
   const RoleHomePage = Pages[roleHome] || Pages[mainPageKey];
 
   return (
