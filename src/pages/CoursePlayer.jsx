@@ -582,13 +582,6 @@ export default function CoursePlayer() {
                 {user && <VideoNotes user={user} courseId={courseId} lectureId={currentLecture.id} currentTime={currentTime} />}
                 <LectureRecommendations currentLecture={currentLecture} allLectures={lectures} onSelectLecture={setCurrentLectureIndex} />
 
-                {currentLecture.transcript_text && (profile?.role === "professor" || profile?.role === "admin") && (
-                  <div className="mt-6 bg-white rounded-2xl border border-gray-100 p-5">
-                    <h3 className="text-sm font-semibold text-black mb-3">Transcript</h3>
-                    <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{currentLecture.transcript_text}</p>
-                  </div>
-                )}
-
                 {currentQuiz && isCompleted && (<div className="mt-6"><QuizModule quiz={currentQuiz} enrollment={enrollment} userId={user?.id} onAchievement={(a) => setNewAchievement(a)} /></div>)}
                 {currentQuiz && !isCompleted && (
                   <div className="mt-6 p-6 bg-amber-50 rounded-2xl border border-amber-200 text-center">
