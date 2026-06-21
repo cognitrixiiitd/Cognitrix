@@ -10,7 +10,8 @@ export default function Leaderboard({ courseId = null, limit = 50, currentUserId
     queryFn: async () => {
       const { data, error } = await supabase
         .from("student_stats")
-        .select("id, user_id, total_points, level, current_streak_days, profiles(full_name, avatar_url)")
+        .select("id, user_id, total_points, level, current_streak_days, profiles!inner(full_name, avatar_url, role)")
+        .eq("profiles.role", "student")
         .order("total_points", { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -34,15 +35,18 @@ export default function Leaderboard({ courseId = null, limit = 50, currentUserId
       // Get current user's stats
       const { data: myStats, error: myErr } = await supabase
         .from("student_stats")
-        .select("id, user_id, total_points, level, current_streak_days, profiles(full_name, avatar_url)")
+        .select("id, user_id, total_points, level, current_streak_days, profiles!inner(full_name, avatar_url, role)")
+        .eq("profiles.role", "student")
         .eq("user_id", currentUserId)
         .maybeSingle();
       if (myErr || !myStats) return null;
 
       // Count how many students have more points
+      // Count how many students (not professors) have more points
       const { count, error: countErr } = await supabase
         .from("student_stats")
-        .select("*", { count: "exact", head: true })
+        .select("profiles!inner(role)", { count: "exact", head: true })
+        .eq("profiles.role", "student")
         .gt("total_points", myStats.total_points);
       if (countErr) return null;
 

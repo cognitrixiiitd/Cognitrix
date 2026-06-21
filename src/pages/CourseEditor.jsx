@@ -9,9 +9,11 @@ import LectureForm from "@/components/course/LectureForm";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Trash2, GripVertical, Eye, Archive, Send, MoreVertical } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, GripVertical, Eye, Archive, Send, MoreVertical, Sparkles, Loader2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import { generateQuizWithAI } from "@/utils/lectureQuizGenerator";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function CourseEditor() {
   const params = new URLSearchParams(window.location.search);
@@ -21,6 +23,50 @@ export default function CourseEditor() {
   const [showLectureForm, setShowLectureForm] = useState(false);
   const [editingLecture, setEditingLecture] = useState(null);
   const [lectureFormTab, setLectureFormTab] = useState("transcript");
+  const [isGeneratingAll, setIsGeneratingAll] = useState(false);
+  const [generateProgress, setGenerateProgress] = useState("");
+  const { toast } = useToast();
+
+  const handleGenerateAllQuizzes = async () => {
+    if (!lectures.length) return;
+    setIsGeneratingAll(true);
+    const apiKey = import.meta.env.VITE_AI_API_KEY || "";
+    let created = 0;
+    let skipped = 0;
+    try {
+      for (const lecture of lectures) {
+        setGenerateProgress(`Processing "${lecture.title}"…`);
+        // Check if quiz already exists
+        const { data: existing } = await supabase.from("quizzes").select("id").eq("lecture_id", lecture.id);
+        if (existing && existing.length > 0) { skipped++; continue; }
+
+        const questions = await generateQuizWithAI(lecture, apiKey);
+        if (!questions || questions.length === 0) { skipped++; continue; }
+
+        const { data: newQuiz } = await supabase.from("quizzes").insert({
+          course_id: courseId,
+          lecture_id: lecture.id,
+          title: `Quiz: ${lecture.title}`,
+          total_points: questions.length * 10,
+        }).select().single();
+
+        if (newQuiz) {
+          const toInsert = questions.map((q, i) => ({ ...q, quiz_id: newQuiz.id, order_index: i }));
+          await supabase.from("quiz_questions").insert(toInsert);
+          created++;
+        }
+      }
+      toast({
+        title: `✨ Done! ${created} quiz${created !== 1 ? "zes" : ""} generated`,
+        description: skipped > 0 ? `${skipped} lecture${skipped !== 1 ? "s" : ""} already had a quiz or no content — skipped.` : "All lectures now have quizzes.",
+      });
+    } catch (err) {
+      toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsGeneratingAll(false);
+      setGenerateProgress("");
+    }
+  };
 
   const { data: course, isLoading } = useQuery({
     queryKey: ["editor-course", courseId],
@@ -35,7 +81,7 @@ export default function CourseEditor() {
   const { data: lectures = [] } = useQuery({
     queryKey: ["editor-lectures", courseId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("lectures").select("id, title, type, order_index, duration_minutes, section_name, source_url, attachments, topic_timestamps, transcript_text").eq("course_id", courseId).order("order_index");
+      const { data, error } = await supabase.from("lectures").select("id, title, type, order_index, duration_minutes, section_name, source_url, attachments, topic_timestamps, transcript_text, ai_generated_description").eq("course_id", courseId).order("order_index");
       if (error) throw error;
       return data || [];
     },
@@ -117,7 +163,23 @@ export default function CourseEditor() {
       <div className="bg-white rounded-2xl border border-gray-100 p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-black">Lectures</h2>
-          <Button size="sm" onClick={() => { setEditingLecture(null); setShowLectureForm(true); }} className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl text-xs gap-1"><Plus className="w-3.5 h-3.5" />Add Lecture</Button>
+          <div className="flex gap-2">
+            {lectures.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleGenerateAllQuizzes}
+                disabled={isGeneratingAll}
+                className="rounded-xl text-xs gap-1.5 border-[#00a98d]/40 text-[#00a98d] hover:bg-[#00a98d]/5"
+              >
+                {isGeneratingAll
+                  ? <><Loader2 className="w-3 h-3 animate-spin" />{generateProgress || "Generating…"}</>
+                  : <><Sparkles className="w-3 h-3" />Generate All Quizzes</>
+                }
+              </Button>
+            )}
+            <Button size="sm" onClick={() => { setEditingLecture(null); setShowLectureForm(true); }} className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl text-xs gap-1"><Plus className="w-3.5 h-3.5" />Add Lecture</Button>
+          </div>
         </div>
 
         {lectures.length === 0 ? (

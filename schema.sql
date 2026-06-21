@@ -750,3 +750,34 @@ create trigger on_student_profile_created
   after insert on profiles
   for each row
   execute function handle_new_student_profile();
+
+
+-- ============================================================
+-- 16. TABLE: professor_applications
+-- ============================================================
+create table professor_applications (
+  id           uuid primary key default gen_random_uuid(),
+  full_name    text not null,
+  email        text not null unique,
+  department   text not null,
+  designation  text not null,
+  institution  text not null,
+  courses_plan text not null,
+  reason       text,
+  status       text default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  password     text,
+  reviewed_by  uuid references profiles(id),
+  reviewed_at  timestamp with time zone,
+  created_at   timestamp with time zone default now()
+);
+
+alter table professor_applications enable row level security;
+
+create policy "professor_applications: users can insert applications"
+  on professor_applications for insert
+  with check (true);
+
+create policy "professor_applications: admins full access"
+  on professor_applications for all
+  using (public.get_user_role() = 'admin');
+

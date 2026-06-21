@@ -6,10 +6,8 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function testFunction() {
-  console.log("Invoking Edge Function...");
-  
-  // Note: Since I don't have the user's actual application_id or email, 
-  // I will use a dummy one. If the admin client is working but the user already exists, it will return an error there.
+  console.log("Invoking Edge Function with new gmail...");
+  const randomEmail = `prof_${Math.floor(Math.random() * 1000000)}@gmail.com`;
   
   const response = await fetch(`${supabaseUrl}/functions/v1/approve-professor`, {
     method: 'POST',
@@ -19,8 +17,9 @@ async function testFunction() {
     },
     body: JSON.stringify({
       application_id: "00000000-0000-0000-0000-000000000000",
-      email: "test_new_prof@example.com",
-      full_name: "Test Name",
+      email: randomEmail,
+      full_name: "Test Professor",
+      password: "TestPassword123!"
     })
   });
   

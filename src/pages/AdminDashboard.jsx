@@ -271,6 +271,7 @@ function ApplicationsSection({ adminId, toast }) {
         application_id: application.id,
         email: application.email,
         full_name: application.full_name,
+        password: application.password,
       },
     });
 

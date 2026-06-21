@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import ManualQuizBuilder from "./ManualQuizBuilder";
 import VideoSegmentBuilder from "./VideoSegmentBuilder";
+import { generateQuizWithAI } from "@/utils/lectureQuizGenerator";
 import { Upload, Link as LinkIcon, Save, X, FileText, Video } from "lucide-react";
 
 export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, course, existingLecture, sections = [], defaultTab = "transcript" }) {
@@ -18,12 +19,69 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
     title: existingLecture.title || "", type: existingLecture.type || "youtube", source_url: existingLecture.source_url || "",
     transcript_text: existingLecture.transcript_text || "", attachments: existingLecture.attachments || [],
     section_name: existingLecture.section_name || "", duration_minutes: existingLecture.duration_minutes || 0,
-  } : { title: "", type: "youtube", source_url: "", transcript_text: "", attachments: [], section_name: "", duration_minutes: 0 });
+    ai_generated_description: existingLecture.ai_generated_description || "",
+  } : { title: "", type: "youtube", source_url: "", transcript_text: "", attachments: [], section_name: "", duration_minutes: 0, ai_generated_description: "" });
   const [quizQuestions, setQuizQuestions] = useState([]);
   const [videoSegments, setVideoSegments] = useState([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
+  const [fetchingTranscript, setFetchingTranscript] = useState(false);
+
+  const extractVideoId = (url) => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
+  const handleFetchTranscript = async () => {
+    const videoId = extractVideoId(form.source_url);
+    if (!videoId) {
+      toast({ title: "Invalid URL", description: "Please enter a valid YouTube URL.", variant: "destructive" });
+      return;
+    }
+    setFetchingTranscript(true);
+    try {
+      const response = await fetch(`https://youtube-transcript.ai/transcript/${videoId}.txt`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch transcript: HTTP ${response.status}`);
+      }
+      const text = await response.text();
+      setForm(prev => ({ ...prev, transcript_text: text }));
+      toast({ title: "Transcript fetched!", description: "YouTube transcript loaded successfully." });
+    } catch (err) {
+      console.error("[Fetch Transcript] Error:", err);
+      toast({ title: "Failed to fetch transcript", description: "The video might not have captions or the API is unavailable.", variant: "destructive" });
+    } finally {
+      setFetchingTranscript(false);
+    }
+  };
+
+  const handleAutoGenerate = async (numQuestions, allowedTypes) => {
+    setIsGenerating(true);
+    try {
+      const apiKey = import.meta.env.VITE_AI_API_KEY || "";
+      const lectureData = {
+        title: form.title,
+        transcript_text: form.transcript_text,
+        ai_generated_description: existingLecture?.ai_generated_description || "",
+        topic_timestamps: existingLecture?.topic_timestamps || videoSegments.map(s => ({ label: s.title })),
+      };
+      const generated = await generateQuizWithAI(lectureData, apiKey, numQuestions, allowedTypes);
+      if (generated && generated.length > 0) {
+        setQuizQuestions(generated);
+        toast({ title: "Quiz generated!", description: `${generated.length} questions created. Review and save.` });
+      } else {
+        toast({ title: "Nothing generated", description: "Add a transcript or topic timestamps first.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   useEffect(() => {
     if (existingLecture) {
@@ -32,6 +90,7 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
         title: existingLecture.title || "", type: existingLecture.type || "youtube", source_url: existingLecture.source_url || "",
         transcript_text: existingLecture.transcript_text || "", attachments: existingLecture.attachments || [],
         section_name: existingLecture.section_name || "", duration_minutes: existingLecture.duration_minutes || 0,
+        ai_generated_description: existingLecture.ai_generated_description || "",
       });
       // Load existing video segments from topic_timestamps
       if (existingLecture.topic_timestamps && Array.isArray(existingLecture.topic_timestamps) && existingLecture.topic_timestamps.length > 0) {
@@ -170,6 +229,7 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
           transcript_text: form.transcript_text, course_id: courseId, order_index: orderIndex + i,
           section_name: form.section_name, duration_minutes: Math.ceil((endSec - startSec) / 60),
           topic_timestamps: [{ topic: seg.title, start: seg.start_time, end: seg.end_time }], attachments: form.attachments,
+          ai_generated_description: form.ai_generated_description,
         }).select().single();
         if (lecture && quizQuestions.length > 0) {
           await saveQuizAndQuestions(courseId, lecture.id, seg.title || form.title, quizQuestions);
@@ -202,8 +262,47 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
         <div><Label className="text-xs text-gray-500 mb-1 block">Duration (minutes)</Label><Input type="number" min="0" value={form.duration_minutes} onChange={(e) => setForm(prev => ({ ...prev, duration_minutes: parseInt(e.target.value) || 0 }))} className="rounded-xl border-gray-200 text-sm" disabled={videoSegments.length > 0} /></div>
       </div>
 
+      <div>
+        <Label className="text-xs text-gray-500 mb-1 block">Lecture Description (shown to students)</Label>
+        <Textarea
+          placeholder="Provide a description of this lecture's topics, objectives, or key points..."
+          value={form.ai_generated_description || ""}
+          onChange={(e) => setForm(prev => ({ ...prev, ai_generated_description: e.target.value }))}
+          className="rounded-xl border-gray-200 text-sm h-20 resize-none focus:ring-[#00a98d]/20 focus:border-[#00a98d]"
+        />
+      </div>
+
       {(form.type === "youtube" || form.type === "external_link") && (
-        <div><Label className="text-xs text-gray-500 mb-1 block">URL</Label><div className="relative"><LinkIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" /><Input placeholder={form.type === "youtube" ? "https://youtube.com/watch?v=..." : "https://..."} value={form.source_url} onChange={(e) => setForm(prev => ({ ...prev, source_url: e.target.value }))} className="pl-9 rounded-xl border-gray-200 text-sm" /></div></div>
+        <div>
+          <Label className="text-xs text-gray-500 mb-1 block">URL</Label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <LinkIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Input
+                placeholder={form.type === "youtube" ? "https://youtube.com/watch?v=..." : "https://..."}
+                value={form.source_url}
+                onChange={(e) => setForm(prev => ({ ...prev, source_url: e.target.value }))}
+                className="pl-9 rounded-xl border-gray-200 text-sm"
+              />
+            </div>
+            {form.type === "youtube" && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleFetchTranscript}
+                disabled={fetchingTranscript || !form.source_url}
+                className="rounded-xl text-xs gap-1 border-gray-200 hover:bg-gray-50 text-gray-700"
+              >
+                {fetchingTranscript ? (
+                  <div className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <FileText className="w-3.5 h-3.5" />
+                )}
+                {fetchingTranscript ? "Fetching..." : "Fetch Transcript"}
+              </Button>
+            )}
+          </div>
+        </div>
       )}
 
       {(form.type === "video" || form.type === "pdf" || form.type === "slides") && (
@@ -229,7 +328,7 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
           <Textarea placeholder="Paste transcript here or use AI to generate a template..." value={form.transcript_text} onChange={(e) => setForm(prev => ({ ...prev, transcript_text: e.target.value }))} className="rounded-xl border-gray-200 text-sm h-32 resize-none" />
         </TabsContent>
         {isVideoType && <TabsContent value="segments"><VideoSegmentBuilder segments={videoSegments} onChange={setVideoSegments} videoUrl={form.source_url} /></TabsContent>}
-        <TabsContent value="quiz"><ManualQuizBuilder questions={quizQuestions} onChange={setQuizQuestions} transcript={form.transcript_text} lectureTitle={form.title} /></TabsContent>
+        <TabsContent value="quiz"><ManualQuizBuilder questions={quizQuestions} onChange={setQuizQuestions} transcript={form.transcript_text} lectureTitle={form.title} onAutoGenerate={handleAutoGenerate} isGenerating={isGenerating} /></TabsContent>
       </Tabs>
 
       <div className="flex gap-2 pt-2 border-t border-gray-100">
