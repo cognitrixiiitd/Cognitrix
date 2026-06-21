@@ -16,8 +16,10 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
   ArrowLeft, CheckCircle, ChevronLeft, ChevronRight,
-  MessageSquare, Play, FileText, ExternalLink, Clock,
+  MessageSquare, Play, FileText, ExternalLink, Clock, Sparkles,
 } from "lucide-react";
+import { generateQuizWithAI } from "@/utils/lectureQuizGenerator";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function CoursePlayer() {
   const params = new URLSearchParams(window.location.search);
@@ -31,12 +33,55 @@ export default function CoursePlayer() {
 
   const [watchTimeStart, setWatchTimeStart] = useState(null);
   const [lastSeekTime, setLastSeekTime] = useState(0);
+  const enrollmentRef = useRef(null); // keep a ref for use inside intervals/cleanup
   const [newAchievement, setNewAchievement] = useState(null);
   const [justCompletedId, setJustCompletedId] = useState(null);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
+  const { toast } = useToast();
   const videoRef = useRef(null);
   const ytIframeRef = useRef(null);
   const ytIntervalRef = useRef(null);
   const lecturesRef = useRef([]);
+
+  const { data: course, isLoading } = useQuery({
+    queryKey: ["player-course", courseId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("courses").select("id, title, enrollment_count").eq("id", courseId).single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!courseId,
+  });
+
+  const { data: lectures = [] } = useQuery({
+    queryKey: ["player-lectures", courseId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("lectures").select("id, title, type, source_url, order_index, duration_minutes, transcript_text, ai_generated_description, suggested_resources, topic_timestamps, attachments, section_name").eq("course_id", courseId).order("order_index");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!courseId,
+  });
+
+  const { data: enrollment } = useQuery({
+    queryKey: ["player-enrollment", courseId, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("enrollments").select("id, course_id, student_id, completed_lectures, progress_percent, time_spent_minutes, status, completed_at").eq("course_id", courseId).eq("student_id", user.id).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!courseId && !!user,
+  });
+
+  const { data: quizzes = [] } = useQuery({
+    queryKey: ["player-quizzes", courseId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("quizzes").select("*, quiz_questions(*)").eq("course_id", courseId);
+      if (error) throw error;
+      return data?.map(q => ({ ...q, questions: q.quiz_questions })) || [];
+    },
+    enabled: !!courseId,
+  });
 
   useEffect(() => {
     if (!user) return;
@@ -102,12 +147,42 @@ export default function CoursePlayer() {
     };
   }, [currentLectureIndex]);
 
-  // Bug 10: Track time spent — flush analytics on unmount and beforeunload
+  // Track time spent — flush to enrollments table periodically and on unmount/lecture change
+  const watchTimeStartRef = useRef(null);
+  useEffect(() => { watchTimeStartRef.current = watchTimeStart; }, [watchTimeStart]);
+  const currentTimeRef = useRef(0);
+  useEffect(() => { currentTimeRef.current = currentTime; }, [currentTime]);
+
+  // Helper: flush accumulated watch time (in minutes) into enrollments.time_spent_minutes
+  const flushTimeToEnrollment = async () => {
+    const start = watchTimeStartRef.current;
+    if (!start || !user || !courseId) return;
+    const elapsedSeconds = Math.round((Date.now() - start) / 1000);
+    if (elapsedSeconds < 10) return; // ignore very short sessions
+    const elapsedMinutes = Math.round(elapsedSeconds / 60);
+    if (elapsedMinutes < 1) return; // only write whole minutes
+
+    const currentEnrollment = enrollmentRef.current;
+    if (!currentEnrollment) return;
+
+    // Reset the start so we don't double-count on the next flush
+    setWatchTimeStart(Date.now());
+
+    await supabase.from("enrollments").update({
+      time_spent_minutes: (currentEnrollment.time_spent_minutes || 0) + elapsedMinutes,
+      last_accessed: new Date().toISOString(),
+    }).eq("id", currentEnrollment.id);
+
+    queryClient.invalidateQueries({ queryKey: ["student-enrollments", user.id] });
+  };
+
+  // Flush analytics event log on beforeunload
   useEffect(() => {
-    const flushWatchTime = () => {
-      if (!watchTimeStart || !user || !courseId) return;
-      const watchDuration = Math.round((Date.now() - watchTimeStart) / 1000);
-      if (watchDuration < 2) return; // ignore trivial durations
+    const flushAnalyticsEvent = () => {
+      const start = watchTimeStartRef.current;
+      if (!start || !user || !courseId) return;
+      const watchDuration = Math.round((Date.now() - start) / 1000);
+      if (watchDuration < 2) return;
       const lectureId = lecturesRef.current?.[currentLectureIndex]?.id;
       if (!lectureId) return;
 
@@ -116,7 +191,7 @@ export default function CoursePlayer() {
         course_id: courseId,
         lecture_id: lectureId,
         event_type: "play",
-        timestamp_seconds: Math.round(currentTime),
+        timestamp_seconds: Math.round(currentTimeRef.current),
         meta: { watch_duration_seconds: watchDuration },
       };
 
@@ -132,45 +207,33 @@ export default function CoursePlayer() {
       }
     };
 
-    window.addEventListener("beforeunload", flushWatchTime);
+    window.addEventListener("beforeunload", flushAnalyticsEvent);
     return () => {
-      window.removeEventListener("beforeunload", flushWatchTime);
-      // Also flush on component unmount using regular insert
-      if (watchTimeStart && user && courseId) {
-        const watchDuration = Math.round((Date.now() - watchTimeStart) / 1000);
-        if (watchDuration >= 2 && lecturesRef.current?.[currentLectureIndex]?.id) {
-          const lectureId = lecturesRef.current[currentLectureIndex].id;
-          supabase.from("analytics_events").insert({
-            user_id: user.id, course_id: courseId, lecture_id: lectureId,
-            event_type: "play", timestamp_seconds: Math.round(currentTime),
-            meta: { watch_duration_seconds: watchDuration },
-          }).then(() => {});
-        }
-      }
+      window.removeEventListener("beforeunload", flushAnalyticsEvent);
     };
-  }, [user, courseId, watchTimeStart, currentLectureIndex, currentTime]);
-  const { data: course, isLoading } = useQuery({
-    queryKey: ["player-course", courseId],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("courses").select("id, title, enrollment_count").eq("id", courseId).single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!courseId,
-  });
+  }, [user, courseId, currentLectureIndex]);
 
-  const { data: lectures = [] } = useQuery({
-    queryKey: ["player-lectures", courseId],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("lectures").select("id, title, type, source_url, order_index, duration_minutes, transcript_text, ai_generated_description, suggested_resources, topic_timestamps, attachments, section_name").eq("course_id", courseId).order("order_index");
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!courseId,
-  });
+  // Periodic flush every 60 seconds → keeps dashboard "Time Spent" up to date
+  useEffect(() => {
+    if (!user || !courseId) return;
+    const interval = setInterval(() => {
+      flushTimeToEnrollment();
+    }, 60_000); // every 60 seconds
+    return () => clearInterval(interval);
+  }, [user, courseId, enrollment]);
+
+  // Flush on lecture change or component unmount
+  useEffect(() => {
+    return () => {
+      flushTimeToEnrollment();
+    };
+  }, [currentLectureIndex]);
 
   // Keep lecturesRef in sync for use in cleanup effects
   useEffect(() => { lecturesRef.current = lectures; }, [lectures]);
+
+  // Keep enrollmentRef in sync for use inside intervals/cleanup
+  useEffect(() => { enrollmentRef.current = enrollment; }, [enrollment]);
 
   // Handle lecture URL param (from bookmark navigation)
   useEffect(() => {
@@ -182,16 +245,6 @@ export default function CoursePlayer() {
       }
     }
   }, [lectures]);
-
-  const { data: enrollment } = useQuery({
-    queryKey: ["player-enrollment", courseId, user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("enrollments").select("id, course_id, student_id, completed_lectures, progress_percent, time_spent_minutes, status, completed_at").eq("course_id", courseId).eq("student_id", user.id).maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!courseId && !!user,
-  });
 
   useEffect(() => {
     if (!enrollment || !lectures.length) return;
@@ -207,16 +260,6 @@ export default function CoursePlayer() {
       });
     }
   }, [enrollment, lectures]);
-
-  const { data: quizzes = [] } = useQuery({
-    queryKey: ["player-quizzes", courseId],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("quizzes").select("*, quiz_questions(*)").eq("course_id", courseId);
-      if (error) throw error;
-      return data?.map(q => ({ ...q, questions: q.quiz_questions })) || [];
-    },
-    enabled: !!courseId,
-  });
 
   const markCompleteMutation = useMutation({
     mutationFn: async (lectureId) => {
@@ -295,6 +338,47 @@ export default function CoursePlayer() {
       }
     },
   });
+
+  const handleGenerateQuiz = async () => {
+    if (!currentLecture || !courseId) return;
+    setIsGeneratingQuiz(true);
+    try {
+      const apiKey = import.meta.env.VITE_AI_API_KEY || "";
+      const questions = await generateQuizWithAI(currentLecture, apiKey);
+      if (!questions || questions.length === 0) {
+        toast({ title: "Nothing generated", description: "Add a transcript or topic timestamps to this lecture first.", variant: "destructive" });
+        return;
+      }
+
+      // Upsert quiz
+      let quizId;
+      const { data: existingQuizzes } = await supabase.from("quizzes").select("id").eq("lecture_id", currentLecture.id);
+      if (existingQuizzes && existingQuizzes.length > 0) {
+        quizId = existingQuizzes[0].id;
+        await supabase.from("quiz_questions").delete().eq("quiz_id", quizId);
+        await supabase.from("quizzes").update({ total_points: questions.length * 10 }).eq("id", quizId);
+      } else {
+        const { data: newQuiz } = await supabase.from("quizzes").insert({
+          course_id: courseId,
+          lecture_id: currentLecture.id,
+          title: `Quiz: ${currentLecture.title}`,
+          total_points: questions.length * 10,
+        }).select().single();
+        if (newQuiz) quizId = newQuiz.id;
+      }
+
+      if (quizId) {
+        const toInsert = questions.map((q, i) => ({ ...q, quiz_id: quizId, order_index: i }));
+        await supabase.from("quiz_questions").insert(toInsert);
+        queryClient.invalidateQueries({ queryKey: ["player-quizzes", courseId] });
+        toast({ title: "✨ Quiz generated!", description: `${questions.length} questions created for "${currentLecture.title}".` });
+      }
+    } catch (err) {
+      toast({ title: "Generation failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsGeneratingQuiz(false);
+    }
+  };
 
   const handleTimeUpdate = (e) => {
     const newTime = e.target.currentTime;
@@ -450,6 +534,21 @@ export default function CoursePlayer() {
                     <div className="flex items-center gap-2 flex-shrink-0">
 
                       {user && <BookmarkButton user={user} courseId={courseId} lectureId={currentLecture.id} currentTime={currentTime} />}
+                      {/* Professor: Generate Quiz button */}
+                      {profile?.role === "professor" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleGenerateQuiz}
+                          disabled={isGeneratingQuiz}
+                          className="rounded-xl text-sm gap-1.5 border-[#00a98d]/40 text-[#00a98d] hover:bg-[#00a98d]/5"
+                        >
+                          {isGeneratingQuiz
+                            ? <><div className="w-3.5 h-3.5 border-2 border-[#00a98d] border-t-transparent rounded-full animate-spin" />Generating…</>
+                            : <><Sparkles className="w-3.5 h-3.5" />{currentQuiz ? "Regenerate Quiz" : "Generate Quiz"}</>
+                          }
+                        </Button>
+                      )}
                       <Button variant={isCompleted ? "outline" : "default"} onClick={() => !isCompleted && markCompleteMutation.mutate(currentLecture.id)} disabled={isCompleted || markCompleteMutation.isPending} className={`rounded-xl text-sm gap-1.5 ${!isCompleted ? "bg-[#00a98d] hover:bg-[#008f77] text-white" : "text-emerald-600 border-emerald-200"}`}>
                         <CheckCircle className="w-4 h-4" />{isCompleted ? "Completed" : "Mark Complete"}
                       </Button>
@@ -483,7 +582,7 @@ export default function CoursePlayer() {
                 {user && <VideoNotes user={user} courseId={courseId} lectureId={currentLecture.id} currentTime={currentTime} />}
                 <LectureRecommendations currentLecture={currentLecture} allLectures={lectures} onSelectLecture={setCurrentLectureIndex} />
 
-                {currentLecture.transcript_text && (
+                {currentLecture.transcript_text && (profile?.role === "professor" || profile?.role === "admin") && (
                   <div className="mt-6 bg-white rounded-2xl border border-gray-100 p-5">
                     <h3 className="text-sm font-semibold text-black mb-3">Transcript</h3>
                     <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{currentLecture.transcript_text}</p>
