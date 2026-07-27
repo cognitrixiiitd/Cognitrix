@@ -2,14 +2,13 @@ import React from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import { createPageUrl } from "../utils";
 import StatCard from "../components/shared/StatCard";
 import CourseCard from "../components/shared/CourseCard";
 import PageSkeleton from "../components/shared/PageSkeleton";
 import EmptyState from "../components/shared/EmptyState";
 import RecommendedCourses from "@/components/learning/RecommendedCourses";
-import { BookOpen, GraduationCap, BarChart3, Clock, TrendingUp } from "lucide-react";
+import { BookOpen, GraduationCap, Clock, TrendingUp } from "lucide-react";
 
 export default function StudentDashboard() {
   const { user, profile } = useAuth();

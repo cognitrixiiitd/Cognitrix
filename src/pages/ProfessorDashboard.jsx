@@ -11,10 +11,9 @@ import EmptyState from "../components/shared/EmptyState";
 import ProfessorDashboardMetrics from "@/components/analytics/ProfessorDashboardMetrics";
 import {
   BookOpen, Users, BarChart3, MessageSquare, PlusCircle, TrendingUp,
-  CheckCircle2, XCircle, Loader2, UserPlus,
+  CheckCircle2, XCircle, Loader2, UserPlus, Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -164,7 +163,34 @@ export default function ProfessorDashboard() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {courses.slice(0, 6).map((course) => (
-                  <CourseCard key={course.id} course={course} showStatus linkTo={`CourseEditor?id=${course.id}`} />
+                  <div key={course.id} className="space-y-2">
+                    <CourseCard
+                      course={course}
+                      showStatus
+                      linkTo={`CourseEditor?id=${course.id}`}
+                    />
+                    <div className="flex gap-2">
+                      <Link to={createPageUrl(`CoursePlayer?id=${course.id}`)} className="flex-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full rounded-xl text-xs gap-1"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          Preview
+                        </Button>
+                      </Link>
+                      <Link to={createPageUrl(`CourseEditor?id=${course.id}`)} className="flex-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full rounded-xl text-xs"
+                        >
+                          Edit
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}

@@ -2,12 +2,11 @@
  * lectureQuizGenerator.js
  *
  * Generates quiz questions from a lecture's transcript / topic timestamps.
- * Uses Gemini 2.0 Flash when an API key is available, falls back to rule-based
- * generation otherwise.
+ * Uses the shared Gemini 2.0 Flash client (aiClient.js) when an API key is
+ * available, falls back to rule-based generation otherwise.
  */
 
-const GEMINI_ENDPOINT =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+import { callGemini } from "./aiClient.js";
 
 /**
  * Build a concise context string from the lecture object.
@@ -43,7 +42,12 @@ function buildLectureContext(lecture) {
  * Call Gemini API to produce quiz questions.
  * Returns an array of question objects matching the quiz_questions schema.
  */
-export async function generateQuizWithAI(lecture, apiKey, numQuestions = 5, allowedTypes = ["multiple_choice", "fill_in_blank", "short_answer"]) {
+export async function generateQuizWithAI(
+  lecture,
+  numQuestions = 5,
+  allowedTypes = ["multiple_choice", "fill_in_blank", "short_answer"]
+) {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) {
     return generateQuizFallback(lecture, numQuestions, allowedTypes);
   }
@@ -80,33 +84,8 @@ Respond ONLY with a valid JSON array, no markdown wrapper, no extra text:
 ]`;
 
   try {
-    const response = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 1500,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err?.error?.message || `HTTP ${response.status}`);
-    }
-
-    const result = await response.json();
-    const rawText = result?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-    // Strip possible markdown code fences
-    const jsonText = rawText
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```\s*$/, "")
-      .trim();
-
-    const parsed = JSON.parse(jsonText);
+    const rawText = await callGemini(prompt);
+    const parsed = JSON.parse(rawText);
 
     if (!Array.isArray(parsed) || parsed.length === 0) {
       throw new Error("Unexpected response structure");
@@ -144,7 +123,7 @@ export function generateQuizFallback(lecture, numQuestions = 5, allowedTypes = [
 
   for (let idx = 0; idx < numQuestions; idx++) {
     const qType = typeCycles[idx % typeCycles.length];
-    
+
     if (qType === "multiple_choice") {
       questions.push({
         question_type: "multiple_choice",

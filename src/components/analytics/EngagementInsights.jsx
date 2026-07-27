@@ -1,6 +1,6 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
-import { Clock, AlertCircle, TrendingDown } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import {
   BarChart,
   Bar,

@@ -1,7 +1,6 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
-import { Trophy, Medal, Award, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export default function Leaderboard({ courseId = null, limit = 50, currentUserId = null }) {

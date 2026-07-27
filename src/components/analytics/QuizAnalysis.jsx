@@ -1,5 +1,4 @@
 import React from "react";
-import { Badge } from "@/components/ui/badge";
 import {
   LineChart,
   Line,
@@ -9,7 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { TrendingUp, TrendingDown, Award } from "lucide-react";
+import { Award } from "lucide-react";
 
 export default function QuizAnalysis({ enrollments }) {
   // Aggregate quiz performance data

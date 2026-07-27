@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MessageSquare, Send, Flag, CheckCircle, Clock } from "lucide-react";
+import { MessageSquare, Send, Flag, CheckCircle } from "lucide-react";
 
 export default function ProfessorQA() {
   const { user, profile } = useAuth();
@@ -54,7 +54,7 @@ export default function ProfessorQA() {
         text,
       });
       if (insertError) throw insertError;
-      
+
       const { error: updateError } = await supabase.from("questions").update({ status: "answered" }).eq("id", questionId);
       if (updateError) throw updateError;
     },
