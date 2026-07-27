@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useSetCurrentLecture } from "../contexts/CurrentLectureContext";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -12,7 +13,6 @@ import VideoNotes from "@/components/player/VideoNotes";
 import AchievementNotification from "@/components/gamification/AchievementNotification";
 import LectureRecommendations from "@/components/player/LectureRecommendations";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
   ArrowLeft, CheckCircle, ChevronLeft, ChevronRight,
@@ -26,6 +26,7 @@ export default function CoursePlayer() {
   const courseId = params.get("id");
   const queryClient = useQueryClient();
   const { user, profile } = useAuth();
+  const setCurrentLecture = useSetCurrentLecture();
   const [currentLectureIndex, setCurrentLectureIndex] = useState(0);
   const [showQA, setShowQA] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -343,8 +344,7 @@ export default function CoursePlayer() {
     if (!currentLecture || !courseId) return;
     setIsGeneratingQuiz(true);
     try {
-      const apiKey = import.meta.env.VITE_AI_API_KEY || "";
-      const questions = await generateQuizWithAI(currentLecture, apiKey);
+      const questions = await generateQuizWithAI(currentLecture);
       if (!questions || questions.length === 0) {
         toast({ title: "Nothing generated", description: "Add a transcript or topic timestamps to this lecture first.", variant: "destructive" });
         return;
@@ -402,12 +402,20 @@ export default function CoursePlayer() {
     }
   };
 
-  if (isLoading) return <PageSkeleton variant="player" />;
-  if (!course) return <div className="text-center py-20 text-gray-500">Course not found</div>;
-
   const currentLecture = lectures[currentLectureIndex];
   const isCompleted = enrollment?.completed_lectures?.includes(currentLecture?.id) || justCompletedId === currentLecture?.id;
   const currentQuiz = quizzes.find((q) => q.lecture_id === currentLecture?.id);
+
+  useEffect(() => {
+    setCurrentLecture(currentLecture || null);
+
+    return () => {
+      setCurrentLecture(null);
+    };
+  }, [currentLecture, setCurrentLecture]);
+
+  if (isLoading) return <PageSkeleton variant="player" />;
+  if (!course) return <div className="text-center py-20 text-gray-500">Course not found</div>;
 
   const getYouTubeEmbedUrl = (url) => {
     if (!url) return null;
@@ -417,22 +425,22 @@ export default function CoursePlayer() {
 
   return (
     <div className="-m-4 lg:-m-8">
-      <div className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-4">
-        <div className="flex items-center gap-3">
-          <Link to={createPageUrl(`CourseDetail?id=${courseId}`)} className="p-1.5 hover:bg-gray-50 rounded-lg transition-colors">
-            <ArrowLeft className="w-4 h-4 text-gray-500" />
-          </Link>
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-black truncate">{course.title}</p>
-            <p className="text-xs text-gray-400">{currentLectureIndex + 1} of {lectures.length} lectures</p>
+        <div className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-4">
+          <div className="flex items-center gap-3">
+            <Link to={createPageUrl(`CourseDetail?id=${courseId}`)} className="p-1.5 hover:bg-gray-50 rounded-lg transition-colors">
+              <ArrowLeft className="w-4 h-4 text-gray-500" />
+            </Link>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-black truncate">{course.title}</p>
+              <p className="text-xs text-gray-400">{currentLectureIndex + 1} of {lectures.length} lectures</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowQA(!showQA)} className="text-xs gap-1">
+              <MessageSquare className="w-3.5 h-3.5" />Q&A
+            </Button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setShowQA(!showQA)} className="text-xs gap-1">
-            <MessageSquare className="w-3.5 h-3.5" />Q&A
-          </Button>
-        </div>
-      </div>
 
       <div className="flex flex-col lg:flex-row" style={{ height: "calc(100vh - 4rem - 3.5rem)" }}>
         <div className="flex-1 overflow-y-auto">

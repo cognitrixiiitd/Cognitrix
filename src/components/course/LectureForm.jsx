@@ -62,14 +62,13 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
   const handleAutoGenerate = async (numQuestions, allowedTypes) => {
     setIsGenerating(true);
     try {
-      const apiKey = import.meta.env.VITE_AI_API_KEY || "";
       const lectureData = {
         title: form.title,
         transcript_text: form.transcript_text,
         ai_generated_description: existingLecture?.ai_generated_description || "",
         topic_timestamps: existingLecture?.topic_timestamps || videoSegments.map(s => ({ label: s.title })),
       };
-      const generated = await generateQuizWithAI(lectureData, apiKey, numQuestions, allowedTypes);
+      const generated = await generateQuizWithAI(lectureData, numQuestions, allowedTypes);
       if (generated && generated.length > 0) {
         setQuizQuestions(generated);
         toast({ title: "Quiz generated!", description: `${generated.length} questions created. Review and save.` });

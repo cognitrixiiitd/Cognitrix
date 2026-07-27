@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
@@ -8,7 +8,6 @@ import {
   GraduationCap,
   BookOpen,
   ClipboardList,
-  BarChart3,
   Search,
   ChevronDown,
   ChevronRight,
@@ -22,7 +21,6 @@ import {
   AlertTriangle,
   FileText,
   Trophy,
-  X,
   ExternalLink,
   ToggleLeft,
   ToggleRight,
@@ -30,7 +28,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -1230,6 +1228,12 @@ function CoursesSection({ toast }) {
                         <Button size="sm" variant="outline" className="h-7 text-xs">
                           <ExternalLink className="w-3 h-3 mr-1" />
                           View
+                        </Button>
+                      </Link>
+                      <Link to={createPageUrl(`CoursePlayer?id=${c.id}`)}>
+                        <Button size="sm" variant="outline" className="h-7 text-xs">
+                          <Play className="w-3 h-3 mr-1" />
+                          Preview
                         </Button>
                       </Link>
                       <Button

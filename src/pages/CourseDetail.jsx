@@ -111,7 +111,7 @@ export default function CourseDetail() {
   if (!course) return <div className="text-center py-20 text-gray-500">Course not found</div>;
 
   const isEnrolled = !!enrollment;
-  const isProfessor = profile?.role === "professor" || profile?.role === "admin";
+  const isStaff = profile?.role === "professor" || profile?.role === "admin";
 
   // Fix 5: Determine enrollment action button
   const renderEnrollmentAction = () => {
@@ -122,11 +122,21 @@ export default function CourseDetail() {
         </Link>
       );
     }
-    if (isProfessor) {
+    if (isStaff) {
       return (
-        <Link to={createPageUrl(`CourseEditor?id=${courseId}`)}>
-          <Button variant="outline" className="rounded-xl px-8">Edit Course</Button>
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link to={createPageUrl(`CoursePlayer?id=${courseId}`)}>
+            <Button className="bg-[#00a98d] hover:bg-[#008f77] text-white rounded-xl px-8 gap-2">
+              <Play className="w-4 h-4" />
+              Watch Lectures
+            </Button>
+          </Link>
+          <Link to={createPageUrl(`CourseEditor?id=${courseId}`)}>
+            <Button variant="outline" className="rounded-xl px-8">
+              Edit Course
+            </Button>
+          </Link>
+        </div>
       );
     }
     if (enrollmentRequest?.status === "pending") {

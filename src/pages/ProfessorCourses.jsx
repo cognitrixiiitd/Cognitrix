@@ -7,7 +7,7 @@ import { createPageUrl } from "../utils";
 import CourseCard from "../components/shared/CourseCard";
 import PageSkeleton from "../components/shared/PageSkeleton";
 import EmptyState from "../components/shared/EmptyState";
-import { BookOpen, PlusCircle, Search } from "lucide-react";
+import { BookOpen, PlusCircle, Search, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -76,7 +76,30 @@ export default function ProfessorCourses() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((course) => (
-            <CourseCard key={course.id} course={course} showStatus linkTo={`CourseEditor?id=${course.id}`} />
+            <div key={course.id} className="space-y-2">
+              <CourseCard course={course} showStatus linkTo={`CourseEditor?id=${course.id}`} />
+              <div className="flex gap-2">
+                <Link to={createPageUrl(`CoursePlayer?id=${course.id}`)} className="flex-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full rounded-xl text-xs gap-1"
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    Preview
+                  </Button>
+                </Link>
+                <Link to={createPageUrl(`CourseEditor?id=${course.id}`)} className="flex-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full rounded-xl text-xs"
+                  >
+                    Edit
+                  </Button>
+                </Link>
+              </div>
+            </div>
           ))}
         </div>
       )}

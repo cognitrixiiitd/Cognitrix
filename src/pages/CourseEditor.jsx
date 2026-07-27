@@ -9,7 +9,7 @@ import LectureForm from "@/components/course/LectureForm";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Trash2, GripVertical, Eye, Archive, Send, MoreVertical, Sparkles, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, GripVertical, Eye, Archive, Send, MoreVertical, Sparkles, Loader2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { generateQuizWithAI } from "@/utils/lectureQuizGenerator";
@@ -30,7 +30,6 @@ export default function CourseEditor() {
   const handleGenerateAllQuizzes = async () => {
     if (!lectures.length) return;
     setIsGeneratingAll(true);
-    const apiKey = import.meta.env.VITE_AI_API_KEY || "";
     let created = 0;
     let skipped = 0;
     try {
@@ -40,7 +39,7 @@ export default function CourseEditor() {
         const { data: existing } = await supabase.from("quizzes").select("id").eq("lecture_id", lecture.id);
         if (existing && existing.length > 0) { skipped++; continue; }
 
-        const questions = await generateQuizWithAI(lecture, apiKey);
+        const questions = await generateQuizWithAI(lecture);
         if (!questions || questions.length === 0) { skipped++; continue; }
 
         const { data: newQuiz } = await supabase.from("quizzes").insert({

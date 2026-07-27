@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { CheckCircle, Circle, Play, FileText, Video, ExternalLink, Send } from "lucide-react";
+import { CheckCircle, Play, FileText, Video, ExternalLink, Send } from "lucide-react";
 
 const typeIcons = { video: Video, youtube: Play, pdf: FileText, slides: FileText, notes: FileText, external_link: ExternalLink };
 

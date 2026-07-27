@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Sparkles, Play, FileText, Video, ExternalLink, TrendingUp } from "lucide-react";
+import { Sparkles, Play, FileText, Video, ExternalLink } from "lucide-react";
 
 const typeIcons = {
   video: Video,

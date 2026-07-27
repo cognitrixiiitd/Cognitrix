@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import StatCard from "@/components/shared/StatCard";
 import PageSkeleton from "@/components/shared/PageSkeleton";
-import { Users, BookOpen, MessageSquare, TrendingUp, Award, Clock, BarChart3 } from "lucide-react";
+import { Users, BookOpen, MessageSquare, TrendingUp, Award, BarChart3 } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 export default function ProfessorDashboardMetrics({ professorId }) {
