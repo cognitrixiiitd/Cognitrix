@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { CheckCircle, Play, FileText, Video, ExternalLink, Send } from "lucide-react";
+import { CheckCircle, Play, FileText, Video, ExternalLink, Send, Bot, Sparkles } from "lucide-react";
 
 const typeIcons = { video: Video, youtube: Play, pdf: FileText, slides: FileText, notes: FileText, external_link: ExternalLink };
 
@@ -63,7 +63,26 @@ export default function PlayerSidebar({ lectures, currentIndex, onSelect, comple
     <div className="w-full lg:w-80 border-l border-gray-100 bg-white overflow-y-auto">
       {showQA ? (
         <div className="p-4">
-          <h3 className="text-sm font-semibold text-black mb-4">Questions & Discussion</h3>
+          <h3 className="text-sm font-semibold text-black mb-3">Questions & Discussion</h3>
+
+          {/* AI Chatbot Button */}
+          <a
+            href="https://cognitrix-chatbot-main.onrender.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 w-full mb-4 p-3 rounded-xl text-white transition-all duration-200 hover:opacity-90 hover:shadow-lg active:scale-95"
+            style={{ background: "linear-gradient(135deg, #00a98d 0%, #007a66 100%)" }}
+          >
+            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+              <Bot className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-white">Ask AI Chatbot</p>
+              <p className="text-[10px] text-white/75">Get instant answers to your doubts</p>
+            </div>
+            <Sparkles className="w-3.5 h-3.5 text-white/80 flex-shrink-0" />
+          </a>
+
           <div className="space-y-3 mb-4">
             {questions.length === 0 ? (<p className="text-xs text-gray-400 text-center py-4">No questions yet. Be the first!</p>) : (
               questions.map((q) => (
