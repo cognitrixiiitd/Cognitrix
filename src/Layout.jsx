@@ -105,6 +105,7 @@ export default function Layout({ children, currentPageName }) {
               Cognitrix
             </span>
           </Link>
+          {/* Role switcher: shown for professors and dual-role users (role=professor with is_student=true) */}
           {isProfessor && (
             <Link
               to={createPageUrl(

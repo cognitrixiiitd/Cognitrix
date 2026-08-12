@@ -11,7 +11,7 @@ import EmptyState from "../components/shared/EmptyState";
 import ProfessorDashboardMetrics from "@/components/analytics/ProfessorDashboardMetrics";
 import {
   BookOpen, Users, BarChart3, MessageSquare, PlusCircle, TrendingUp,
-  CheckCircle2, XCircle, Loader2, UserPlus, Play,
+  CheckCircle2, XCircle, Loader2, UserPlus, Play, Mail, Check, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -21,6 +21,7 @@ export default function ProfessorDashboard() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [respondingInviteId, setRespondingInviteId] = useState(null);
 
   const { data: courses = [], isLoading: loadingCourses } = useQuery({
     queryKey: ["prof-courses", user?.id],
@@ -36,6 +37,79 @@ export default function ProfessorDashboard() {
     },
     enabled: !!user?.id,
   });
+
+  // Pending collaboration invitations
+  const { data: pendingCollabInvites = [] } = useQuery({
+    queryKey: ["prof-pending-invites", user?.id],
+    queryFn: async () => {
+      // 1. Try SECURITY DEFINER RPC first
+      const { data: rpcData, error: rpcError } = await supabase.rpc("get_my_pending_invitations");
+      if (!rpcError && rpcData && rpcData.length > 0) {
+        return rpcData;
+      }
+
+      // 2. Fallback: direct table query
+      const { data: directData, error: directError } = await supabase
+        .from("course_collaborators")
+        .select("id, course_id, status, courses(id, title, professor_name)")
+        .eq("professor_id", user.id)
+        .eq("status", "pending");
+
+      if (directError || !directData) return rpcData || [];
+      return directData.map((r) => ({
+        id: r.id,
+        course_id: r.course_id,
+        status: r.status,
+        course_title: r.courses?.title,
+        professor_name: r.courses?.professor_name,
+      }));
+    },
+    enabled: !!user?.id,
+  });
+
+  const handleAcceptInvite = async (invite) => {
+    setRespondingInviteId(invite.id);
+    try {
+      const { error } = await supabase.rpc("accept_course_invitation", {
+        p_collaboration_id: invite.id,
+      });
+
+      if (error) throw error;
+
+      await queryClient.invalidateQueries({ queryKey: ["prof-pending-invites", user?.id] });
+      await queryClient.invalidateQueries({ queryKey: ["prof-shared-courses", user?.id] });
+
+      toast({
+        title: "Invitation accepted!",
+        description: `You are now a collaborator on "${invite.course_title || "the course"}".`,
+      });
+    } catch (err) {
+      console.error("Accept invitation failed:", err);
+      toast({ title: "Error accepting invite", description: err.message, variant: "destructive" });
+    } finally {
+      setRespondingInviteId(null);
+    }
+  };
+
+  const handleDeclineInvite = async (invite) => {
+    setRespondingInviteId(invite.id);
+    try {
+      const { error } = await supabase.rpc("decline_course_invitation", {
+        p_collaboration_id: invite.id,
+      });
+
+      if (error) throw error;
+
+      await queryClient.invalidateQueries({ queryKey: ["prof-pending-invites", user?.id] });
+
+      toast({ title: "Invitation declined" });
+    } catch (err) {
+      console.error("Decline invitation failed:", err);
+      toast({ title: "Error declining invite", description: err.message, variant: "destructive" });
+    } finally {
+      setRespondingInviteId(null);
+    }
+  };
 
   const courseIds = courses.map((c) => c.id);
 
@@ -68,7 +142,7 @@ export default function ProfessorDashboard() {
     enabled: courseIds.length > 0,
   });
 
-  // Fix 5: Fetch pending enrollment requests for professor's courses
+  // Fetch pending enrollment requests for professor's courses
   const { data: enrollmentRequests = [] } = useQuery({
     queryKey: ["prof-enrollment-requests", courseIds.join(",")],
     queryFn: async () => {
@@ -116,6 +190,60 @@ export default function ProfessorDashboard() {
           </Button>
         </Link>
       </div>
+
+      {/* Pending Collaboration Invitations Banner on Dashboard */}
+      {pendingCollabInvites.length > 0 && (
+        <div className="mb-8 p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80">
+          <div className="flex items-center gap-2 mb-3">
+            <Mail className="w-4 h-4 text-amber-700" />
+            <h2 className="text-sm font-semibold text-amber-900">
+              Pending Collaboration Invitations ({pendingCollabInvites.length})
+            </h2>
+          </div>
+          <div className="space-y-2">
+            {pendingCollabInvites.map((invite) => (
+              <div
+                key={invite.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white rounded-xl border border-amber-100 shadow-sm"
+              >
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    {invite.course_title || invite.courses?.title || "Untitled Course"}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Invited by {invite.professor_name || invite.courses?.professor_name || "another professor"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 self-end sm:self-center">
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs bg-[#00a98d] hover:bg-[#008f77] text-white gap-1 rounded-lg"
+                    disabled={respondingInviteId === invite.id}
+                    onClick={() => handleAcceptInvite(invite)}
+                  >
+                    {respondingInviteId === invite.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5" />
+                    )}
+                    Accept
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs text-gray-600 border-gray-200 hover:bg-gray-50 gap-1 rounded-lg"
+                    disabled={respondingInviteId === invite.id}
+                    onClick={() => handleDeclineInvite(invite)}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    Decline
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList className="bg-gray-100 rounded-xl">

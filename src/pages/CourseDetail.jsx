@@ -195,7 +195,7 @@ export default function CourseDetail() {
             <Badge variant="outline" className="text-xs text-gray-500 border-gray-200">
               {categoryLabels[course.category] || course.category}
             </Badge>
-            {course.tags?.map((tag, i) => (
+            {Array.isArray(course.tags) && course.tags.map((tag, i) => (
               <Badge key={i} variant="secondary" className="text-xs bg-gray-50 text-gray-500">{tag}</Badge>
             ))}
           </div>
@@ -247,7 +247,7 @@ export default function CourseDetail() {
           </div>
         </div>
         <div className="space-y-6">
-          {course.learning_outcomes?.length > 0 && (
+          {Array.isArray(course.learning_outcomes) && course.learning_outcomes.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 p-6">
               <h3 className="text-sm font-semibold text-black mb-3">What You'll Learn</h3>
               <ul className="space-y-2">
@@ -257,7 +257,7 @@ export default function CourseDetail() {
               </ul>
             </div>
           )}
-          {course.prerequisites?.length > 0 && (
+          {Array.isArray(course.prerequisites) && course.prerequisites.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 p-6">
               <h3 className="text-sm font-semibold text-black mb-3">Prerequisites</h3>
               <ul className="space-y-2">

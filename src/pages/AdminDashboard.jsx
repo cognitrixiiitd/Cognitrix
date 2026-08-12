@@ -25,6 +25,7 @@ import {
   ToggleLeft,
   ToggleRight,
   Loader2,
+  Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -128,7 +129,6 @@ export default function AdminDashboard() {
           <TabsTrigger value="students" className="text-xs rounded-lg">Students</TabsTrigger>
           <TabsTrigger value="professors" className="text-xs rounded-lg">Professors</TabsTrigger>
           <TabsTrigger value="courses" className="text-xs rounded-lg">Courses</TabsTrigger>
-          <TabsTrigger value="quizzes" className="text-xs rounded-lg">Quizzes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview"><OverviewSection /></TabsContent>
@@ -136,7 +136,6 @@ export default function AdminDashboard() {
         <TabsContent value="students"><StudentsSection toast={toast} /></TabsContent>
         <TabsContent value="professors"><ProfessorsSection toast={toast} /></TabsContent>
         <TabsContent value="courses"><CoursesSection toast={toast} /></TabsContent>
-        <TabsContent value="quizzes"><QuizzesSection /></TabsContent>
       </Tabs>
     </div>
   );
@@ -1224,7 +1223,7 @@ function CoursesSection({ toast }) {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1.5">
-                      <Link to={createPageUrl("CourseDetail") + `?id=${c.id}`}>
+                      <Link to={createPageUrl(`CourseDetail?id=${c.id}`)}>
                         <Button size="sm" variant="outline" className="h-7 text-xs">
                           <ExternalLink className="w-3 h-3 mr-1" />
                           View
@@ -1307,165 +1306,6 @@ function CoursesSection({ toast }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// SECTION 7 — Quiz Overview
-// ═══════════════════════════════════════════════════════════════
-function QuizzesSection() {
-  const [quizzes, setQuizzes] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState(null);
-  const [questions, setQuestions] = useState({});
-
-  useEffect(() => {
-    (async () => {
-      const { data, error } = await supabase
-        .from("quizzes")
-        .select(
-          "*, courses(title, profiles(full_name)), quiz_questions(count), quiz_attempts(count)",
-        )
-        .order("created_at", { ascending: false });
-      if (error) console.error("[Quizzes] Fetch error:", error);
-      setQuizzes(data || []);
-      setLoading(false);
-    })();
-  }, []);
-
-  const loadQuestions = async (quizId) => {
-    if (questions[quizId]) return;
-    const { data } = await supabase
-      .from("quiz_questions")
-      .select("*")
-      .eq("quiz_id", quizId)
-      .order("order_index", { ascending: true });
-    setQuestions((prev) => ({ ...prev, [quizId]: data || [] }));
-  };
-
-  const toggleExpand = (quizId) => {
-    if (expandedId === quizId) {
-      setExpandedId(null);
-    } else {
-      setExpandedId(quizId);
-      loadQuestions(quizId);
-    }
-  };
-
-  return (
-    <div className="mt-4 space-y-4">
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-        </div>
-      ) : quizzes.length === 0 ? (
-        <div className="text-center py-16 text-gray-400 text-sm">No quizzes found.</div>
-      ) : (
-        <div className="bg-white rounded-xl border border-gray-100 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-8" />
-                <TableHead>Quiz Title</TableHead>
-                <TableHead className="hidden md:table-cell">Course</TableHead>
-                <TableHead className="hidden lg:table-cell">Professor</TableHead>
-                <TableHead className="hidden sm:table-cell">Questions</TableHead>
-                <TableHead className="hidden sm:table-cell">Attempts</TableHead>
-                <TableHead className="hidden lg:table-cell">Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {quizzes.map((q) => (
-                <React.Fragment key={q.id}>
-                  <TableRow
-                    className="cursor-pointer hover:bg-gray-50/50"
-                    onClick={() => toggleExpand(q.id)}
-                  >
-                    <TableCell>
-                      {expandedId === q.id ? (
-                        <ChevronDown className="w-4 h-4 text-gray-400" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-gray-400" />
-                      )}
-                    </TableCell>
-                    <TableCell className="font-medium">{q.title}</TableCell>
-                    <TableCell className="hidden md:table-cell text-sm text-gray-500">
-                      {q.courses?.title || "—"}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell text-sm text-gray-500">
-                      {q.courses?.profiles?.full_name || "—"}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell text-sm">
-                      {q.quiz_questions?.[0]?.count ?? 0}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell text-sm">
-                      {q.quiz_attempts?.[0]?.count ?? 0}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell text-sm text-gray-500">
-                      {formatDate(q.created_at)}
-                    </TableCell>
-                  </TableRow>
-                  {expandedId === q.id && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="bg-gray-50/50 p-4">
-                        {!questions[q.id] ? (
-                          <div className="flex justify-center py-4">
-                            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                          </div>
-                        ) : questions[q.id].length === 0 ? (
-                          <p className="text-sm text-gray-400 text-center">
-                            No questions in this quiz.
-                          </p>
-                        ) : (
-                          <div className="space-y-3">
-                            {questions[q.id].map((qq, idx) => (
-                              <div key={qq.id} className="bg-white rounded-lg border border-gray-100 p-3">
-                                <p className="text-sm text-gray-800">
-                                  <span className="font-medium text-gray-500 mr-2">
-                                    Q{idx + 1}.
-                                  </span>
-                                  {qq.question_text}
-                                </p>
-                                {qq.choices && qq.choices.length > 0 && (
-                                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
-                                    {qq.choices.map((ch, ci) => (
-                                      <p
-                                        key={ci}
-                                        className={`text-xs px-2 py-1 rounded ${
-                                          ci === qq.correct_index
-                                            ? "bg-emerald-50 text-emerald-700 font-medium"
-                                            : "text-gray-500"
-                                        }`}
-                                      >
-                                        {String.fromCharCode(65 + ci)}. {ch}
-                                      </p>
-                                    ))}
-                                  </div>
-                                )}
-                                <div className="mt-1.5 flex gap-2">
-                                  <Badge variant="outline" className="text-[10px]">
-                                    {qq.question_type?.replace(/_/g, " ")}
-                                  </Badge>
-                                  {qq.topic && (
-                                    <Badge variant="outline" className="text-[10px]">
-                                      {qq.topic}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </React.Fragment>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
     </div>
   );
 }

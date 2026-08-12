@@ -8,6 +8,7 @@ import CourseDetail from "./pages/CourseDetail";
 import CourseEditor from "./pages/CourseEditor";
 import CoursePlayer from "./pages/CoursePlayer";
 import CreateCourse from "./pages/CreateCourse";
+import LectureEditor from "./pages/LectureEditor";
 
 import MyLearning from "./pages/MyLearning";
 import ProfessorCourses from "./pages/ProfessorCourses";
@@ -27,6 +28,7 @@ export const PAGES = {
   CourseEditor: CourseEditor,
   CoursePlayer: CoursePlayer,
   CreateCourse: CreateCourse,
+  LectureEditor: LectureEditor,
 
   MyLearning: MyLearning,
   ProfessorCourses: ProfessorCourses,
