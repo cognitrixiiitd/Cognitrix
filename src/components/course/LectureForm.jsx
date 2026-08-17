@@ -135,7 +135,7 @@ Since we cannot auto-transcribe, create a helpful placeholder that professors ca
         if (existingQuizzes.length > 0) {
           await base44.entities.Quiz.update(existingQuizzes[0].id, {
             questions: quizQuestions,
-            total_points: quizQuestions.length * 10,
+            total_points: 60,
           });
         } else {
           await base44.entities.Quiz.create({
@@ -143,7 +143,7 @@ Since we cannot auto-transcribe, create a helpful placeholder that professors ca
             lecture_id: existingLecture.id,
             title: `Quiz: ${form.title}`,
             questions: quizQuestions,
-            total_points: quizQuestions.length * 10,
+            total_points: 60,
           });
         }
       }
@@ -201,7 +201,7 @@ Since we cannot auto-transcribe, create a helpful placeholder that professors ca
             lecture_id: lecture.id,
             title: `Quiz: ${seg.title || form.title}`,
             questions: quizQuestions,
-            total_points: quizQuestions.length * 10,
+            total_points: 60,
           });
         }
       }
@@ -226,7 +226,7 @@ Since we cannot auto-transcribe, create a helpful placeholder that professors ca
           lecture_id: lecture.id,
           title: `Quiz: ${form.title}`,
           questions: quizQuestions,
-          total_points: quizQuestions.length * 10,
+          total_points: 60,
         });
       }
 

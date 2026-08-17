@@ -51,7 +51,7 @@ export default function QuizModule({
     });
 
     // Award points and achievements
-    const pointsEarned = s >= 70 ? correct * 10 : correct * 5;
+    const pointsEarned = 10 + Math.round(40 * (s / 100)) + (s === 100 ? 10 : 0);
 
     const stats = await base44.entities.StudentStats.filter({
       user_id: userId,
@@ -74,30 +74,6 @@ export default function QuizModule({
         level: newLevel,
         last_active_date: new Date().toISOString().split("T")[0],
       });
-
-      if (s === 100) {
-        const achievement = await base44.entities.Achievement.create({
-          user_id: userId,
-          course_id: quiz.course_id,
-          achievement_type: "perfect_score",
-          badge_name: "Perfect Score!",
-          badge_description: "Aced a quiz with 100%",
-          badge_icon: "star",
-          points_awarded: 50,
-        });
-        if (onAchievement) onAchievement(achievement);
-      } else if (s >= 90) {
-        const achievement = await base44.entities.Achievement.create({
-          user_id: userId,
-          course_id: quiz.course_id,
-          achievement_type: "quiz_ace",
-          badge_name: "Quiz Master",
-          badge_description: "Scored 90% or higher",
-          badge_icon: "award",
-          points_awarded: 25,
-        });
-        if (onAchievement) onAchievement(achievement);
-      }
     }
   };
 
@@ -131,12 +107,8 @@ export default function QuizModule({
           </div>
           <p className="text-xs text-gray-600">
             {score === 100
-              ? "🎉 Perfect! +50 pts bonus!"
-              : score >= 90
-                ? "🏆 Excellent! +25 pts bonus!"
-                : score >= 70
-                  ? "✅ Good job! Points earned."
-                  : "Review the material and try again."}
+              ? `🎉 Perfect! 60 pts earned (includes +10 bonus)!`
+              : `✅ Good job! ${10 + Math.round(40 * (score / 100))} pts earned.`}
           </p>
         </div>
       )}

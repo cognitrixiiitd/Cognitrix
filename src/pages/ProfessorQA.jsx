@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MessageSquare, Send, Flag, CheckCircle, Clock } from "lucide-react";
+import { MessageSquare, Send, Flag } from "lucide-react";
 
 export default function ProfessorQA() {
   const [user, setUser] = useState(null);

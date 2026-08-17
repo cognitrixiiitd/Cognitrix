@@ -10,7 +10,6 @@ import {
   Medal,
   Crown,
   Flame,
-  Clock,
 } from "lucide-react";
 
 const iconMap = {

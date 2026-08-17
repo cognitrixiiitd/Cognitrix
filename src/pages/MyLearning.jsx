@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "../utils";
 import PageSkeleton from "../components/shared/PageSkeleton";
 import EmptyState from "../components/shared/EmptyState";
-import BookmarkList from "@/components/player/BookmarkList";
+import BookmarkList from "@/components/learning/BookmarkList";
 import { BookOpen, GraduationCap, Trash2, Play, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";

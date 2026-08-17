@@ -10,7 +10,6 @@ import {
   TrendingUp,
   Award,
   Flag,
-  Clock,
   BarChart3,
 } from "lucide-react";
 import {

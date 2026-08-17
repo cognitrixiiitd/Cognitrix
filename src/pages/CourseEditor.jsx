@@ -10,13 +10,12 @@ import BulkLectureActions from "@/components/course/BulkLectureActions";
 import CourseHistory from "@/components/course/CourseHistory";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   ArrowLeft, Plus, Play, FileText, Video, ExternalLink, Trash2, GripVertical, Eye, Globe, Archive,
-  Clock, Edit, FolderPlus, FolderOpen, ChevronDown, ChevronRight
+  Clock, Edit, FolderOpen, ChevronDown, ChevronRight
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,

@@ -154,7 +154,7 @@ INSTRUCTIONS:
           source_timestamp: q.source_timestamp,
           generated_by_ai: true,
         })),
-        total_points: result.suggested_quiz.length * 10,
+        total_points: 60,
       });
     }
 

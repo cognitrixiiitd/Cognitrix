@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "../utils";
 import StatCard from "../components/shared/StatCard";
-import CourseCard from "../components/shared/CourseCard";
 import LoadingSpinner from "../components/shared/LoadingSpinner";
 import EmptyState from "../components/shared/EmptyState";
 import {
