@@ -1,7 +1,7 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
-import { Trophy, Medal, Award, TrendingUp } from "lucide-react";
+import { Trophy, Medal, Award } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 

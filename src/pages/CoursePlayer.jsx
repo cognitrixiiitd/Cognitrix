@@ -11,7 +11,6 @@ import VideoNotes from "@/components/player/VideoNotes";
 import AchievementNotification from "@/components/gamification/AchievementNotification";
 import LectureRecommendations from "@/components/player/LectureRecommendations";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
   Select,
@@ -23,7 +22,6 @@ import {
 import {
   ArrowLeft,
   Flag,
-  Bookmark,
   CheckCircle,
   ChevronLeft,
   ChevronRight,
@@ -169,7 +167,7 @@ export default function CoursePlayer() {
           user_id: user.id,
         });
         if (stats[0]) {
-          const newPoints = (stats[0].total_points || 0) + 20;
+          const newPoints = (stats[0].total_points || 0) + 10;
           const newLevel = Math.floor(newPoints / 1000) + 1;
           await base44.entities.StudentStats.update(stats[0].id, {
             total_points: newPoints,

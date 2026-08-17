@@ -13,7 +13,6 @@ import {
   Menu,
   X,
   LogOut,
-  User,
   ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
