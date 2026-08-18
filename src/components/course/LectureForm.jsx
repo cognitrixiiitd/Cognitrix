@@ -13,8 +13,8 @@ import VideoSegmentBuilder from "./VideoSegmentBuilder";
 import { generateQuizWithAI } from "@/utils/lectureQuizGenerator";
 import { Upload, Link as LinkIcon, Save, X, FileText, Video } from "lucide-react";
 
-export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, course, existingLecture, sections = [], defaultTab = "transcript" }) {
-  const { user, profile } = useAuth();
+export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, course: _course, existingLecture, sections = [], defaultTab = "transcript" }) {
+  const { user, profile: _profile } = useAuth();
   const [form, setForm] = useState(existingLecture ? {
     title: existingLecture.title || "", type: existingLecture.type || "youtube", source_url: existingLecture.source_url || "",
     transcript_text: existingLecture.transcript_text || "", attachments: existingLecture.attachments || [],
@@ -115,7 +115,7 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
     setUploading(true);
     const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const filePath = `${courseId}/${Date.now()}_${cleanName}`;
-    const { data, error } = await supabase.storage.from("lectures").upload(filePath, file, {
+    const { data: _data, error } = await supabase.storage.from("lectures").upload(filePath, file, {
       contentType: file.type,
       upsert: false
     });
@@ -135,7 +135,7 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
     if (!file) return;
     const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const fileName = `${Date.now()}_${cleanName}`;
-    const { data, error } = await supabase.storage.from("lectures").upload(`attachments/${courseId}/${fileName}`, file, {
+    const { data: _data, error } = await supabase.storage.from("lectures").upload(`attachments/${courseId}/${fileName}`, file, {
       contentType: file.type,
       upsert: false
     });
@@ -165,14 +165,14 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
     let quizId;
     if (existingQuizzes?.length > 0) {
       quizId = existingQuizzes[0].id;
-      await supabase.from("quizzes").update({ total_points: quizQuestions.length * 10 }).eq("id", quizId);
+      await supabase.from("quizzes").update({ total_points: 60 }).eq("id", quizId);
       await supabase.from("quiz_questions").delete().eq("quiz_id", quizId);
     } else {
       const { data: newQuiz } = await supabase.from("quizzes").insert({ 
         course_id: courseId, 
         lecture_id: lectureId, 
         title: `Quiz: ${title}`, 
-        total_points: quizQuestions.length * 10 
+        total_points: 60 
       }).select().single();
       if (newQuiz) quizId = newQuiz.id;
     }
@@ -180,7 +180,7 @@ export default function LectureForm({ courseId, orderIndex, onSaved, onCancel, c
     if (quizId) {
       const questionsToInsert = quizQuestions.map((q, i) => {
         // Strip out the ID if any, so we strictly insert a fresh row
-        const { id, created_at, quiz_id, ...questionData } = q;
+        const { id: _id, created_at: _ca, quiz_id: _qid, ...questionData } = q;
         return {
           ...questionData,
           quiz_id: quizId,

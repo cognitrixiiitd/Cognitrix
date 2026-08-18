@@ -5,7 +5,7 @@ import CourseCard from "@/components/shared/CourseCard";
 import { Button } from "@/components/ui/button";
 import { Sparkles, RefreshCw } from "lucide-react";
 
-export default function RecommendedCourses({ userId, enrolledCourseIds = [], enrollments, learningPaths }) {
+export default function RecommendedCourses({ userId: _userId, enrolledCourseIds = [], enrollments, learningPaths }) {
   const [recommendations, setRecommendations] = useState(null);
   const [generating, setGenerating] = useState(false);
 

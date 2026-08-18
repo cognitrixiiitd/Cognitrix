@@ -40,7 +40,7 @@ function CollaboratorsPanel({ courseId, ownerId }) {
   const {
     data: collaborators = [],
     isLoading,
-    error: collaboratorsError,
+    error: _collaboratorsError,
   } = useQuery({
     queryKey: ["course-collaborators", courseId],
     queryFn: async () => {
@@ -335,7 +335,7 @@ export default function CourseEditor() {
   const params = new URLSearchParams(window.location.search);
   const courseId = params.get("id");
   const queryClient = useQueryClient();
-  const { user, profile } = useAuth();
+  const { user, profile: _profile } = useAuth();
   const navigate = useNavigate();
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [generateProgress, setGenerateProgress] = useState("");
@@ -381,7 +381,7 @@ export default function CourseEditor() {
           course_id: courseId,
           lecture_id: lecture.id,
           title: `Quiz: ${lecture.title}`,
-          total_points: questions.length * 10,
+          total_points: 60,
         }).select().single();
 
         if (newQuiz) {
@@ -446,7 +446,7 @@ export default function CourseEditor() {
     onSuccess: () => queryClient.invalidateQueries(["editor-lectures", courseId]),
   });
 
-  const bulkDeleteMutation = useMutation({
+  const _bulkDeleteMutation = useMutation({
     mutationFn: async (lectureIds) => {
       for (const id of lectureIds) {
         await supabase.from("lectures").delete().eq("id", id);

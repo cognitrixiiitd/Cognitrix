@@ -263,7 +263,7 @@ function ApplicationsSection({ adminId, toast }) {
   const handleApprove = async (application) => {
     setApprovingId(application.id);
 
-    const { data, error } = await supabase.functions.invoke('approve-professor', {
+    const { data: _data, error } = await supabase.functions.invoke('approve-professor', {
       body: {
         application_id: application.id,
         email: application.email,
@@ -278,7 +278,7 @@ function ApplicationsSection({ adminId, toast }) {
         try {
           const body = await error.context.json();
           if (body && body.error) realErrorMessage = body.error;
-        } catch (e) {
+        } catch {
           // ignore parsing error
         }
       }
@@ -339,11 +339,10 @@ function ApplicationsSection({ adminId, toast }) {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
-              filter === f
-                ? "bg-[#00a98d] text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${filter === f
+              ? "bg-[#00a98d] text-white"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
           >
             {f}
           </button>
@@ -1168,11 +1167,10 @@ function CoursesSection({ toast }) {
             <button
               key={f}
               onClick={() => setStatusFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
-                statusFilter === f
-                  ? "bg-[#00a98d] text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${statusFilter === f
+                ? "bg-[#00a98d] text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
             >
               {f}
             </button>

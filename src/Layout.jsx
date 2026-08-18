@@ -46,7 +46,7 @@ export default function Layout({ children, currentPageName }) {
   const displayName = profile?.full_name || user?.email || "User";
   const userRole = profile?.role || "student";
 
-  const isPublicPage = ["CourseCatalog", "LandingPage"].includes(
+  const _isPublicPage = ["CourseCatalog", "LandingPage"].includes(
     currentPageName,
   );
 
