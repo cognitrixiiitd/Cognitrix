@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { Badge } from "@/components/ui/badge";
 
-export default function Leaderboard({ courseId = null, limit = 50, currentUserId = null }) {
+export default function Leaderboard({ courseId = null, limit: _limit = 50, currentUserId = null }) {
   const { data: stats = [], isLoading } = useQuery({
     queryKey: ["leaderboard", courseId],
     queryFn: async () => {

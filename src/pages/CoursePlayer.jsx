@@ -125,7 +125,7 @@ export default function CoursePlayer() {
         if (data.event === 'infoDelivery' && data.info && typeof data.info.duration === 'number' && data.info.duration > 0) {
           setVideoDuration(data.info.duration);
         }
-      } catch (e) {}
+      } catch {}
     };
 
     window.addEventListener('message', handleMessage);
@@ -288,7 +288,7 @@ export default function CoursePlayer() {
       if (!wasAlreadyCompleted) {
         const { data: stats } = await supabase.from("student_stats").select("id, total_points, level, courses_completed").eq("user_id", user.id).single();
         if (stats) {
-          const newPoints = (stats.total_points || 0) + 20;
+          const newPoints = (stats.total_points || 0) + 10;
           const newLevel = Math.floor(newPoints / 1000) + 1;
           await supabase.from("student_stats").update({
             total_points: newPoints, level: newLevel,
@@ -300,9 +300,12 @@ export default function CoursePlayer() {
           const { data: stats2 } = await supabase.from("student_stats").select("id, total_points, courses_completed").eq("user_id", user.id).single();
           if (stats2) {
             const newCoursesCompleted = (stats2.courses_completed || 0) + 1;
+            const newTotalPoints = (stats2.total_points || 0) + 100;
+            const newLevel = Math.floor(newTotalPoints / 1000) + 1;
             await supabase.from("student_stats").update({
               courses_completed: newCoursesCompleted,
-              total_points: (stats2.total_points || 0) + 100,
+              total_points: newTotalPoints,
+              level: newLevel,
             }).eq("id", stats2.id);
 
             const { data: achievement } = await supabase.from("achievements").insert({
@@ -356,13 +359,13 @@ export default function CoursePlayer() {
       if (existingQuizzes && existingQuizzes.length > 0) {
         quizId = existingQuizzes[0].id;
         await supabase.from("quiz_questions").delete().eq("quiz_id", quizId);
-        await supabase.from("quizzes").update({ total_points: questions.length * 10 }).eq("id", quizId);
+        await supabase.from("quizzes").update({ total_points: 60 }).eq("id", quizId);
       } else {
         const { data: newQuiz } = await supabase.from("quizzes").insert({
           course_id: courseId,
           lecture_id: currentLecture.id,
           title: `Quiz: ${currentLecture.title}`,
-          total_points: questions.length * 10,
+          total_points: 60,
         }).select().single();
         if (newQuiz) quizId = newQuiz.id;
       }

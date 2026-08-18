@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle, XCircle, HelpCircle, Trophy } from "lucide-react";
 
-export default function QuizModule({ quiz, enrollment, userId, onAchievement }) {
+export default function QuizModule({ quiz, enrollment, userId, onAchievement: _onAchievement }) {
   const [answers, setAnswers] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore] = useState(null);
@@ -16,6 +16,8 @@ export default function QuizModule({ quiz, enrollment, userId, onAchievement }) 
   const handleSubmit = async () => {
     // Count only gradable questions (exclude short_answer)
     const gradableQuestions = quiz.questions.filter(q => q.question_type !== "short_answer");
+    if (gradableQuestions.length === 0) return; // Prevent submission for quizzes with no gradable questions
+
     let correct = 0;
     gradableQuestions.forEach((q) => {
       const qIdx = quiz.questions.indexOf(q);
@@ -28,8 +30,10 @@ export default function QuizModule({ quiz, enrollment, userId, onAchievement }) 
         if (answers[qIdx] === q.correct_index) correct++;
       }
     });
-    const s = gradableQuestions.length > 0 ? Math.round((correct / gradableQuestions.length) * 100) : 100;
+    const s = Math.round((correct / gradableQuestions.length) * 100);
     setScore(s); setSubmitted(true);
+
+    const hasAlreadySubmitted = enrollment?.quiz_scores?.some(qs => qs.quiz_id === quiz.id);
 
     if (enrollment) {
       const scores = [...(enrollment.quiz_scores || [])];
@@ -42,31 +46,29 @@ export default function QuizModule({ quiz, enrollment, userId, onAchievement }) 
       event_type: "quiz_submit", meta: { score: s, correct, total: gradableQuestions.length },
     });
 
-    const pointsEarned = s >= 70 ? correct * 10 : correct * 5;
-    const { data: studentStats } = await supabase.from("student_stats").select("*").eq("user_id", userId).maybeSingle();
+    if (!hasAlreadySubmitted) {
+      const pointsEarned = 10 + Math.round(40 * (s / 100)) + (s === 100 ? 10 : 0);
+      const { data: studentStats } = await supabase.from("student_stats").select("*").eq("user_id", userId).maybeSingle();
 
-    if (studentStats) {
-      const newQuizCount = (studentStats.quizzes_completed || 0) + 1;
-      const newPerfectCount = s === 100 ? (studentStats.perfect_quiz_count || 0) + 1 : studentStats.perfect_quiz_count;
-      const newPoints = (studentStats.total_points || 0) + pointsEarned;
-      const newLevel = Math.floor(newPoints / 1000) + 1;
-      await supabase.from("student_stats").update({
-        total_points: newPoints, quizzes_completed: newQuizCount, perfect_quiz_count: newPerfectCount,
-        level: newLevel, last_active_date: new Date().toISOString().split("T")[0],
-      }).eq("id", studentStats.id);
+      if (studentStats) {
+        const newQuizCount = (studentStats.quizzes_completed || 0) + 1;
+        const newPerfectCount = s === 100 ? (studentStats.perfect_quiz_count || 0) + 1 : studentStats.perfect_quiz_count;
+        const newPoints = (studentStats.total_points || 0) + pointsEarned;
+        const newLevel = Math.floor(newPoints / 1000) + 1;
+        await supabase.from("student_stats").update({
+          total_points: newPoints, quizzes_completed: newQuizCount, perfect_quiz_count: newPerfectCount,
+          level: newLevel, last_active_date: new Date().toISOString().split("T")[0],
+        }).eq("id", studentStats.id);
 
-      if (s === 100) {
-        const { data: achievement } = await supabase.from("achievements").insert({
-          user_id: userId, course_id: quiz.course_id, achievement_type: "perfect_score",
-          badge_name: "Perfect Score!", badge_description: "Aced a quiz with 100%", badge_icon: "star", points_awarded: 50,
-        }).select().single();
-        if (achievement && onAchievement) onAchievement(achievement);
-      } else if (s >= 90) {
-        const { data: achievement } = await supabase.from("achievements").insert({
-          user_id: userId, course_id: quiz.course_id, achievement_type: "quiz_ace",
-          badge_name: "Quiz Master", badge_description: "Scored 90% or higher", badge_icon: "award", points_awarded: 25,
-        }).select().single();
-        if (achievement && onAchievement) onAchievement(achievement);
+        if (s === 100) {
+          await supabase.from("achievements").insert({
+            user_id: userId, course_id: quiz.course_id,
+            achievement_type: "perfect_quiz",
+            badge_name: "Perfect Score!",
+            badge_description: "Got 100% on a quiz",
+            badge_icon: "award", points_awarded: 0,
+          });
+        }
       }
     }
   };
@@ -86,7 +88,7 @@ export default function QuizModule({ quiz, enrollment, userId, onAchievement }) 
       {submitted && (
         <div className={`p-4 rounded-xl mb-5 ${score >= 70 ? "bg-emerald-50 border border-emerald-200" : "bg-orange-50 border border-orange-200"}`}>
           <div className="flex items-center gap-2 mb-1">{score >= 70 && <Trophy className="w-4 h-4 text-emerald-600" />}<p className={`text-sm font-semibold ${score >= 70 ? "text-emerald-700" : "text-orange-700"}`}>Score: {score}%</p></div>
-          <p className="text-xs text-gray-600">{score === 100 ? "🎉 Perfect! +50 pts bonus!" : score >= 90 ? "🏆 Excellent! +25 pts bonus!" : score >= 70 ? "✅ Good job! Points earned." : "Review the material and try again."}</p>
+          <p className="text-xs text-gray-600">{score === 100 ? "🎉 Perfect! 60 pts earned (includes +10 bonus)!" : `✅ Good job! ${10 + Math.round(40 * (score / 100))} pts earned.`}</p>
         </div>
       )}
       <div className="space-y-5">

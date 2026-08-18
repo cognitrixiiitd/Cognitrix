@@ -104,7 +104,7 @@ export default function PlayerSidebar({ lectures, currentIndex, onSelect, comple
           <h3 className="text-sm font-semibold text-black mb-4">Course Content</h3>
           <div className="space-y-1">
             {lectures.map((lecture, i) => {
-              const Icon = typeIcons[lecture.type] || FileText;
+              const _Icon = typeIcons[lecture.type] || FileText;
               const isCompleted = completedLectures.includes(lecture.id);
               const isCurrent = i === currentIndex;
               return (
